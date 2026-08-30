@@ -42,6 +42,11 @@ function todayPercent(snapshot) {
   return `${snapshot.accountTodayBasis === 'observed' ? '≈' : ''}${formatted}%`;
 }
 
+function weeklyPercent(snapshot) {
+  if (snapshot.accountUsedPct === null) return null;
+  return `${Math.round(snapshot.accountUsedPct)}%`;
+}
+
 function renderDashboard(snapshot, settings) {
   const remaining = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
   document.title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${compactNumber(snapshot.local.tokens)}`;
@@ -79,21 +84,22 @@ function renderDashboard(snapshot, settings) {
 
 function renderOverlay(snapshot, settings) {
   const dailyPct = todayPercent(snapshot);
+  const weeklyPct = weeklyPercent(snapshot);
   if (settings.overlayMode === 'local') {
-    $('overlayAccount').textContent = compactNumber(snapshot.localToday.tokens);
-    $('overlayAccountMeta').textContent = `오늘 · ${snapshot.localToday.requests.toLocaleString('ko-KR')}회`;
-    $('overlayLocal').textContent = compactNumber(snapshot.local.tokens);
-    $('overlayLocalMeta').textContent = `이번 주 · ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
+    $('overlayAccount').textContent = dailyPct ?? '—';
+    $('overlayAccountMeta').textContent = '오늘 · 계정 주간 총량';
+    $('overlayLocal').textContent = weeklyPct ?? '—';
+    $('overlayLocalMeta').textContent = '이번 주 · 계정 사용률';
     $('overlayTrack').hidden = true;
-    $('overlayStatus').textContent = `계정 총량 중 오늘 ${dailyPct ?? '측정 중'}`;
-    $('overlayGuardrail').textContent = '로컬 전용';
+    $('overlayStatus').textContent = '퍼센트는 계정 전체 기준';
+    $('overlayGuardrail').textContent = '이 PC 토큰은 대시보드';
     return;
   }
 
   $('overlayAccount').textContent = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
   $('overlayAccountMeta').textContent = `계정 남음 · 오늘 ${dailyPct ?? '측정 중'}`;
-  $('overlayLocal').textContent = compactNumber(snapshot.local.tokens);
-  $('overlayLocalMeta').textContent = `이 PC 이번 주 · ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
+  $('overlayLocal').textContent = weeklyPct ?? '—';
+  $('overlayLocalMeta').textContent = '이번 주 계정 사용';
   $('overlayTrack').hidden = false;
   const used = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
   $('overlayStatus').textContent = snapshot.guardrailExceeded

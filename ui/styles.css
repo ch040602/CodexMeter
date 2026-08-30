@@ -110,6 +110,6 @@ footer { margin-top: 14px; color: var(--dim); font-size: 9.5px; }
 .overlay-account strong { display: block; font-size: 34px; line-height: .9; letter-spacing: -.055em; font-variant-numeric: tabular-nums; }
 .overlay-account span, .overlay-local span { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; }
 .overlay-local { text-align: right; }
-.overlay-local strong { font-size: 19px; font-variant-numeric: tabular-nums; }
+.overlay-local strong { font-size: 30px; line-height: .9; font-variant-numeric: tabular-nums; }
 .overlay-track { height: 5px; }
 .overlay-footer { margin-top: 8px; color: var(--dim); font-size: 9px; }
