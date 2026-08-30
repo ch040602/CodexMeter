@@ -18,7 +18,7 @@ export interface MeterSnapshot {
   generatedAt: number;
   status: MeterStatus;
   statusDetail: string;
-  source: 'local-session-jsonl';
+  source: 'codex-local-status' | 'local-session-jsonl';
   planName: string | null;
   accountUsedPct: number | null;
   accountRemainingPct: number | null;

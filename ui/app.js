@@ -40,7 +40,8 @@ function renderDashboard(snapshot, settings) {
   document.title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${compactNumber(snapshot.local.tokens)}`;
   $('accountUsed').textContent = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
   $('accountRemaining').textContent = remaining;
-  $('plan').textContent = snapshot.planName ? `Codex ${snapshot.planName}` : snapshot.statusDetail;
+  const accountSource = snapshot.source === 'codex-local-status' ? '로컬 상태' : '세션 기록';
+  $('plan').textContent = snapshot.planName ? `Codex ${snapshot.planName} · ${accountSource}` : snapshot.statusDetail;
   $('freshness').textContent = ago(snapshot.accountObservedAt);
   $('resetAt').textContent = dateTime(snapshot.resetAt);
   $('guardrailCaption').textContent = `경고 ${settings.guardrailPct}%`;
@@ -54,7 +55,11 @@ function renderDashboard(snapshot, settings) {
   $('overlayOpacityRange').value = String(settings.overlayOpacity);
   $('overlayOpacityValue').textContent = `${settings.overlayOpacity}%`;
   $('overlayToggle').textContent = settings.overlayVisible ? '오버레이 끄기' : '오버레이 켜기';
-  $('sourceStatus').textContent = snapshot.status === 'ready' ? '로컬 JSONL · 계정 % 보고됨' : snapshot.statusDetail;
+  $('sourceStatus').textContent = snapshot.status === 'ready'
+    ? snapshot.source === 'codex-local-status'
+      ? 'Codex 로컬 상태 · JSONL 처리량'
+      : '세션 JSONL 대체값'
+    : snapshot.statusDetail;
   $('scanStats').textContent = `${snapshot.filesIndexed} files · ${compactNumber(snapshot.bytesRead)}B read`;
 }
 

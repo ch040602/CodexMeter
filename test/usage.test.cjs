@@ -56,3 +56,18 @@ test('does not present an expired quota sample as current', () => {
   assert.equal(snapshot.accountUsedPct, null);
   assert.equal(snapshot.level, 'unknown');
 });
+
+test('prefers the Codex local status percentage over a lagging JSONL sample', () => {
+  const now = Date.parse('2026-08-30T12:00:00.000Z');
+  const resetAt = now + 5 * 24 * 60 * 60 * 1_000;
+  const lagging = parseLocalUsageLine(line(now - 10_000, 6, resetAt, 500), 'lagging');
+  const snapshot = buildSnapshot([lagging], 80, now, {
+    accountRateLimit: { usedPct: 7, resetAt, planName: 'pro', observedAt: now - 500 },
+  });
+
+  assert.equal(snapshot.accountUsedPct, 7);
+  assert.equal(snapshot.accountRemainingPct, 93);
+  assert.equal(snapshot.accountObservedAt, now - 500);
+  assert.equal(snapshot.source, 'codex-local-status');
+  assert.equal(snapshot.local.tokens, 500);
+});

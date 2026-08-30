@@ -15,6 +15,10 @@ export interface WeeklyRateLimit {
   planName: string | null;
 }
 
+export interface AccountRateLimit extends WeeklyRateLimit {
+  observedAt: number;
+}
+
 export interface LocalUsageRecord {
   key: string;
   timestampMs: number;
@@ -140,6 +144,7 @@ export interface SnapshotDiagnostics {
   filesIndexed?: number;
   bytesRead?: number;
   error?: string;
+  accountRateLimit?: AccountRateLimit | null;
 }
 
 export function buildSnapshot(
@@ -156,15 +161,24 @@ export function buildSnapshot(
     .filter((item): item is LocalUsageRecord & { weekly: WeeklyRateLimit } => item.weekly !== null)
     .sort((left, right) => right.timestampMs - left.timestampMs)[0] ?? null;
 
-  const active = newest !== null && newest.weekly.resetAt > now;
-  const windowStart = active ? newest.weekly.resetAt - WEEK_MS : now - WEEK_MS;
-  const accountUsedPct = active ? newest.weekly.usedPct : null;
+  const live = diagnostics.accountRateLimit && diagnostics.accountRateLimit.resetAt > now
+    ? diagnostics.accountRateLimit
+    : null;
+  const logged = newest !== null && newest.weekly.resetAt > now
+    ? { ...newest.weekly, observedAt: newest.timestampMs }
+    : null;
+  const account = live ?? logged;
+  const active = account !== null;
+  const windowStart = active ? account.resetAt - WEEK_MS : now - WEEK_MS;
+  const accountUsedPct = active ? account.usedPct : null;
   const expired = newest !== null && !active;
   const status: MeterStatus = diagnostics.error ? 'error' : active ? 'ready' : expired ? 'expired' : 'waiting';
   const statusDetail = diagnostics.error
     ? diagnostics.error
     : active
-      ? '로컬 Codex 세션이 보고한 최신 계정 주간 사용률입니다.'
+      ? live
+        ? 'Codex 로컬 상태가 보고한 최신 계정 주간 사용률입니다.'
+        : '로컬 Codex 세션이 보고한 대체 계정 주간 사용률입니다.'
       : expired
         ? '마지막 주간 사용률이 만료되었습니다. 다음 Codex 작업 후 갱신됩니다.'
         : '주간 rate_limits가 포함된 로컬 Codex 세션을 기다리는 중입니다.';
@@ -174,12 +188,12 @@ export function buildSnapshot(
     generatedAt: now,
     status,
     statusDetail,
-    source: 'local-session-jsonl',
-    planName: active ? newest.weekly.planName : null,
+    source: live ? 'codex-local-status' : 'local-session-jsonl',
+    planName: active ? account.planName : null,
     accountUsedPct,
     accountRemainingPct: accountUsedPct === null ? null : Math.max(0, 100 - accountUsedPct),
-    accountObservedAt: active ? newest.timestampMs : null,
-    resetAt: active ? newest.weekly.resetAt : null,
+    accountObservedAt: active ? account.observedAt : null,
+    resetAt: active ? account.resetAt : null,
     windowStart,
     exactWindow: active,
     local: totals(values, windowStart, now),

@@ -7,6 +7,7 @@ import {
   parseLocalUsageLine,
   sessionIdFromJsonlLine,
   WEEK_MS,
+  type AccountRateLimit,
   type LocalUsageRecord,
 } from './usage';
 
@@ -189,10 +190,16 @@ export class LocalUsageScanner {
     return newest;
   }
 
-  async scan(guardrailPct: number, now = Date.now()): Promise<MeterSnapshot> {
+  async scan(
+    guardrailPct: number,
+    now = Date.now(),
+    accountRateLimit: AccountRateLimit | null = null,
+  ): Promise<MeterSnapshot> {
     const discovered = await discoverJsonlFiles(this.roots, now - WEEK_MS - 24 * 60 * 60 * 1_000);
     let bytesRead = await this.updateProbes(discovered);
-    if (this.activeWindowStart === null) {
+    if (accountRateLimit && accountRateLimit.resetAt > now) {
+      this.activeWindowStart = accountRateLimit.resetAt - WEEK_MS;
+    } else if (this.activeWindowStart === null) {
       const newest = this.newestWeeklyProbe();
       this.activeWindowStart = newest?.weekly ? newest.weekly.resetAt - WEEK_MS : null;
     }
@@ -221,7 +228,7 @@ export class LocalUsageScanner {
       [...this.fileCache.values()].flatMap(item => item.records),
       guardrailPct,
       now,
-      { filesIndexed: this.fileCache.size, bytesRead },
+      { filesIndexed: this.fileCache.size, bytesRead, accountRateLimit },
     );
     this.activeWindowStart = snapshot.exactWindow ? snapshot.windowStart : null;
     return snapshot;

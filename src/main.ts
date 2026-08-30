@@ -11,6 +11,7 @@ import {
 } from 'electron';
 import os from 'node:os';
 import path from 'node:path';
+import { CodexStatusClient } from './codexStatus';
 import {
   DEFAULT_SETTINGS,
   type MeterLevel,
@@ -27,6 +28,7 @@ const OVERLAY_WIDTH = 350;
 const OVERLAY_HEIGHT = 166;
 const roots = ['sessions', 'archived_sessions'].map(name => path.join(os.homedir(), '.codex', name));
 const scanner = new LocalUsageScanner(roots);
+const codexStatus = new CodexStatusClient();
 
 let dashboard: BrowserWindow | null = null;
 let overlay: BrowserWindow | null = null;
@@ -243,9 +245,10 @@ function sendState(): void {
 }
 
 function trayTooltip(): string {
+  const accountSource = snapshot.source === 'codex-local-status' ? 'Codex 로컬 상태' : '세션 기록 대체값';
   return [
     'Codex Meter',
-    `계정 이번 주: 남음 ${percent(snapshot.accountRemainingPct)} · 사용 ${percent(snapshot.accountUsedPct)}`,
+    `계정 이번 주 (${accountSource}): 남음 ${percent(snapshot.accountRemainingPct)} · 사용 ${percent(snapshot.accountUsedPct)}`,
     `이 PC 이번 주: ${compactTokens(snapshot.local.tokens)} tokens · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`,
     `경고선: 계정 사용 ${settings.guardrailPct}%`,
   ].join('\n');
@@ -298,7 +301,8 @@ function notifyIfNeeded(): void {
 
 async function refresh(): Promise<MeterSnapshot> {
   if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = scanner.scan(settings.guardrailPct)
+  refreshInFlight = codexStatus.readWeeklyLimit()
+    .then(accountRateLimit => scanner.scan(settings.guardrailPct, Date.now(), accountRateLimit))
     .catch(error => buildSnapshot([], settings.guardrailPct, Date.now(), {
       error: error instanceof Error ? error.message : '로컬 세션을 읽지 못했습니다.',
     }))
@@ -393,6 +397,7 @@ else {
 app.on('before-quit', () => {
   quitting = true;
   if (refreshTimer) clearInterval(refreshTimer);
+  codexStatus.close();
 });
 
 app.on('window-all-closed', () => {
