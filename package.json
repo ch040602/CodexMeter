@@ -1,0 +1,41 @@
+{
+  "name": "codex-local-meter",
+  "version": "1.0.0",
+  "description": "Local-only Codex weekly usage meter for Windows",
+  "main": "dist/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc",
+    "test": "npm run build && node --test test/*.test.cjs",
+    "start": "npm run build && electron .",
+    "inspect": "npm run build && node dist/cli.js",
+    "pack": "npm run build && electron-builder --dir"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1",
+    "typescript": "^6.0.2"
+  },
+  "build": {
+    "appId": "local.codex.meter",
+    "productName": "Codex Meter",
+    "asar": true,
+    "directories": {
+      "output": "installed"
+    },
+    "files": [
+      "dist/**/*",
+      "ui/**/*",
+      "LICENSE",
+      "package.json"
+    ],
+    "win": {
+      "target": "dir",
+      "forceCodeSigning": false,
+      "signAndEditExecutable": false
+    }
+  }
+}
