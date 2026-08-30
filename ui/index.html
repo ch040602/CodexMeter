@@ -76,6 +76,17 @@
           <label><input id="guardrailNumber" type="number" min="1" max="100" step="1"><span>%</span></label>
         </div>
         <div class="control-divider"></div>
+        <div class="setting-row">
+          <div>
+            <p class="label">오버레이 표시</p>
+            <p class="meta">로컬 전용은 오늘과 이번 주의 이 PC 사용량만 표시합니다.</p>
+          </div>
+          <select id="overlayMode" aria-label="오버레이 표시 항목">
+            <option value="account">계정 + 이 PC</option>
+            <option value="local">이 PC만</option>
+          </select>
+        </div>
+        <div class="control-divider"></div>
         <div class="opacity-heading">
           <div>
             <p class="label">오버레이 불투명도</p>
@@ -104,14 +115,14 @@
       <div class="overlay-content">
         <div class="overlay-account">
           <strong id="overlayAccount">—</strong>
-          <span>계정 전체 남음</span>
+          <span id="overlayAccountMeta">계정 전체 남음</span>
         </div>
         <div class="overlay-local">
           <strong id="overlayLocal">0</strong>
           <span id="overlayLocalMeta">이 PC · 이번 주</span>
         </div>
       </div>
-      <div class="overlay-track"><div id="overlayFill"></div><div id="overlayMarker"></div></div>
+      <div id="overlayTrack" class="overlay-track"><div id="overlayFill"></div><div id="overlayMarker"></div></div>
       <div class="overlay-footer"><span id="overlayStatus">로컬 확인 중</span><span id="overlayGuardrail">경고 80%</span></div>
     </main>
     <script src="app.js"></script>

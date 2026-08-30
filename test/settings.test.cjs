@@ -4,11 +4,18 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {
+  normalizeOverlayMode,
   normalizeOverlayOpacity,
   normalizeOverlayPosition,
   readSettings,
   writeSettings,
 } = require('../dist/settings.js');
+
+test('accepts only the supported overlay modes', () => {
+  assert.equal(normalizeOverlayMode('local'), 'local');
+  assert.equal(normalizeOverlayMode('account'), 'account');
+  assert.equal(normalizeOverlayMode('everything'), 'account');
+});
 
 test('keeps overlay opacity within the readable range', () => {
   assert.equal(normalizeOverlayOpacity(86.6), 87);
@@ -30,6 +37,7 @@ test('persists the overlay position with the usage settings', async t => {
   const expected = {
     guardrailPct: 72,
     overlayVisible: true,
+    overlayMode: 'local',
     overlayOpacity: 76,
     overlayPosition: { x: -320, y: 48 },
   };

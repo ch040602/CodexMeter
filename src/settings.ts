@@ -1,7 +1,16 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { DEFAULT_SETTINGS, type MeterSettings, type OverlayPosition } from './contracts';
+import {
+  DEFAULT_SETTINGS,
+  type MeterSettings,
+  type OverlayMode,
+  type OverlayPosition,
+} from './contracts';
 import { normalizeGuardrail } from './usage';
+
+export function normalizeOverlayMode(value: unknown): OverlayMode {
+  return value === 'local' ? 'local' : 'account';
+}
 
 export function normalizeOverlayOpacity(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_SETTINGS.overlayOpacity;
@@ -28,6 +37,7 @@ export async function readSettings(filePath: string): Promise<MeterSettings> {
     return {
       guardrailPct: normalizeGuardrail(raw.guardrailPct),
       overlayVisible: raw.overlayVisible === true,
+      overlayMode: normalizeOverlayMode(raw.overlayMode),
       overlayOpacity: normalizeOverlayOpacity(raw.overlayOpacity),
       overlayPosition: normalizeOverlayPosition(raw.overlayPosition),
     };

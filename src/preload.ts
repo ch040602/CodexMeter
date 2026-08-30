@@ -6,6 +6,7 @@ const api: MeterApi = {
   getSettings: () => ipcRenderer.invoke('meter:get-settings'),
   setGuardrail: value => ipcRenderer.invoke('meter:set-guardrail', value),
   setOverlay: visible => ipcRenderer.invoke('meter:set-overlay', visible),
+  setOverlayMode: mode => ipcRenderer.invoke('meter:set-overlay-mode', mode),
   setOverlayOpacity: value => ipcRenderer.invoke('meter:set-overlay-opacity', value),
   refresh: () => ipcRenderer.invoke('meter:refresh'),
   closeWindow: () => ipcRenderer.invoke('meter:close-window'),

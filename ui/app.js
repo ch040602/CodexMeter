@@ -52,6 +52,7 @@ function renderDashboard(snapshot, settings) {
   $('capacityNote').textContent = snapshot.localCapacityReason;
   $('guardrailRange').value = String(settings.guardrailPct);
   $('guardrailNumber').value = String(settings.guardrailPct);
+  $('overlayMode').value = settings.overlayMode;
   $('overlayOpacityRange').value = String(settings.overlayOpacity);
   $('overlayOpacityValue').textContent = `${settings.overlayOpacity}%`;
   $('overlayToggle').textContent = settings.overlayVisible ? '오버레이 끄기' : '오버레이 켜기';
@@ -64,9 +65,22 @@ function renderDashboard(snapshot, settings) {
 }
 
 function renderOverlay(snapshot, settings) {
+  if (settings.overlayMode === 'local') {
+    $('overlayAccount').textContent = compactNumber(snapshot.localToday.tokens);
+    $('overlayAccountMeta').textContent = `오늘 · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`;
+    $('overlayLocal').textContent = compactNumber(snapshot.local.tokens);
+    $('overlayLocalMeta').textContent = `이번 주 · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`;
+    $('overlayTrack').hidden = true;
+    $('overlayStatus').textContent = '이 PC 세션 파일 기준';
+    $('overlayGuardrail').textContent = '로컬 전용';
+    return;
+  }
+
   $('overlayAccount').textContent = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
+  $('overlayAccountMeta').textContent = '계정 전체 남음';
   $('overlayLocal').textContent = compactNumber(snapshot.local.tokens);
-  $('overlayLocalMeta').textContent = `이 PC · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`;
+  $('overlayLocalMeta').textContent = `이 PC 이번 주 · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`;
+  $('overlayTrack').hidden = false;
   const used = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
   $('overlayStatus').textContent = snapshot.guardrailExceeded
     ? `사용 ${used} · 경고선 도달`
@@ -111,6 +125,7 @@ if (mode === 'dashboard') {
     opacityCommitTimer = setTimeout(() => commitOpacity(event.target.value), 80);
   });
   $('overlayOpacityRange').addEventListener('change', event => commitOpacity(event.target.value));
+  $('overlayMode').addEventListener('change', event => void api.setOverlayMode(event.target.value));
   $('overlayToggle').addEventListener('click', async () => {
     const current = await api.getSettings();
     await api.setOverlay(!current.overlayVisible);

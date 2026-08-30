@@ -20,7 +20,7 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { color: inherit; }
 [hidden] { display: none !important; }
 
@@ -70,6 +70,20 @@ input[type="range"] { width: 100%; accent-color: var(--level); }
 input[type="number"] { width: 52px; padding: 7px 3px 7px 9px; border: 0; outline: 0; background: transparent; color: var(--text); font-variant-numeric: tabular-nums; }
 .range-row label span { color: var(--muted); font-size: 11px; }
 .control-divider { height: 1px; margin: 16px 0 13px; background: var(--line); }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.setting-row > div { min-width: 0; }
+.setting-row select {
+  flex: 0 0 auto;
+  min-width: 126px;
+  padding: 7px 28px 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  outline: 0;
+  background: var(--panel-quiet);
+  color: var(--text);
+  cursor: pointer;
+}
+.setting-row select:focus { border-color: var(--level); }
 .opacity-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .opacity-heading output { color: var(--text); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .opacity-range { display: block; margin-top: 10px; }

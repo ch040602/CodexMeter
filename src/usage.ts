@@ -133,6 +133,12 @@ function totals(records: readonly LocalUsageRecord[], fromMs: number, toMs: numb
   return result;
 }
 
+function startOfLocalDay(timestampMs: number): number {
+  const date = new Date(timestampMs);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
 function levelFor(usedPct: number | null, guardrailPct: number): MeterLevel {
   if (usedPct === null) return 'unknown';
   if (usedPct >= guardrailPct) return 'danger';
@@ -197,6 +203,7 @@ export function buildSnapshot(
     windowStart,
     exactWindow: active,
     local: totals(values, windowStart, now),
+    localToday: totals(values, Math.max(windowStart, startOfLocalDay(now)), now),
     localCapacityPct: null,
     localCapacityReason: '계정 한도 대비 이 PC의 비율은 로컬 로그만으로 정확히 계산할 수 없어 표시하지 않습니다.',
     guardrailPct,

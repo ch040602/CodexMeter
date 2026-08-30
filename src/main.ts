@@ -20,7 +20,7 @@ import {
   type OverlayPosition,
 } from './contracts';
 import { LocalUsageScanner } from './scanner';
-import { normalizeOverlayOpacity, readSettings, writeSettings } from './settings';
+import { normalizeOverlayMode, normalizeOverlayOpacity, readSettings, writeSettings } from './settings';
 import { buildSnapshot, normalizeGuardrail } from './usage';
 
 const REFRESH_MS = 20_000;
@@ -249,6 +249,7 @@ function trayTooltip(): string {
   return [
     'Codex Meter',
     `계정 이번 주 (${accountSource}): 남음 ${percent(snapshot.accountRemainingPct)} · 사용 ${percent(snapshot.accountUsedPct)}`,
+    `이 PC 오늘: ${compactTokens(snapshot.localToday.tokens)} tokens · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`,
     `이 PC 이번 주: ${compactTokens(snapshot.local.tokens)} tokens · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`,
     `경고선: 계정 사용 ${settings.guardrailPct}%`,
   ].join('\n');
@@ -269,6 +270,10 @@ function rebuildTray(): void {
   }
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: `계정 남음 ${remaining} · 사용 ${used}`, click: () => dashboard?.show() },
+    {
+      label: `이 PC 오늘 ${compactTokens(snapshot.localToday.tokens)} tokens · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`,
+      click: () => dashboard?.show(),
+    },
     {
       label: `이 PC 이번 주 ${local} tokens · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`,
       click: () => dashboard?.show(),
@@ -343,6 +348,12 @@ async function setOverlayOpacity(value: unknown): Promise<MeterSettings> {
   return settings;
 }
 
+async function setOverlayMode(value: unknown): Promise<MeterSettings> {
+  settings = { ...settings, overlayMode: normalizeOverlayMode(value) };
+  await persistSettings();
+  return settings;
+}
+
 function installIpc(): void {
   ipcMain.handle('meter:get-snapshot', () => snapshot);
   ipcMain.handle('meter:get-settings', () => settings);
@@ -354,6 +365,7 @@ function installIpc(): void {
     return settings;
   });
   ipcMain.handle('meter:set-overlay', (_event, visible: unknown) => setOverlay(visible === true));
+  ipcMain.handle('meter:set-overlay-mode', (_event, value: unknown) => setOverlayMode(value));
   ipcMain.handle('meter:set-overlay-opacity', (_event, value: unknown) => setOverlayOpacity(value));
   ipcMain.handle('meter:close-window', event => {
     const window = BrowserWindow.fromWebContents(event.sender);

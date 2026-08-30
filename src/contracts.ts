@@ -1,5 +1,6 @@
 export type MeterLevel = 'normal' | 'warning' | 'danger' | 'unknown';
 export type MeterStatus = 'ready' | 'waiting' | 'expired' | 'error';
+export type OverlayMode = 'account' | 'local';
 
 export interface LocalTotals {
   tokens: number;
@@ -27,6 +28,7 @@ export interface MeterSnapshot {
   windowStart: number;
   exactWindow: boolean;
   local: LocalTotals;
+  localToday: LocalTotals;
   localCapacityPct: null;
   localCapacityReason: string;
   guardrailPct: number;
@@ -39,6 +41,7 @@ export interface MeterSnapshot {
 export interface MeterSettings {
   guardrailPct: number;
   overlayVisible: boolean;
+  overlayMode: OverlayMode;
   overlayOpacity: number;
   overlayPosition: OverlayPosition | null;
 }
@@ -46,6 +49,7 @@ export interface MeterSettings {
 export const DEFAULT_SETTINGS: MeterSettings = {
   guardrailPct: 80,
   overlayVisible: false,
+  overlayMode: 'account',
   overlayOpacity: 90,
   overlayPosition: null,
 };
@@ -55,6 +59,7 @@ export interface MeterApi {
   getSettings(): Promise<MeterSettings>;
   setGuardrail(value: number): Promise<MeterSettings>;
   setOverlay(visible: boolean): Promise<MeterSettings>;
+  setOverlayMode(mode: OverlayMode): Promise<MeterSettings>;
   setOverlayOpacity(value: number): Promise<MeterSettings>;
   refresh(): Promise<MeterSnapshot>;
   closeWindow(): Promise<void>;
