@@ -1,6 +1,13 @@
-import type { LocalTotals, MeterLevel, MeterSnapshot, MeterStatus } from './contracts';
+import type {
+  AccountTodayBasis,
+  LocalTotals,
+  MeterLevel,
+  MeterSnapshot,
+  MeterStatus,
+} from './contracts';
 
 export const WEEK_MS = 7 * 24 * 60 * 60 * 1_000;
+const DAILY_BASELINE_LOOKBACK_MS = 12 * 60 * 60 * 1_000;
 
 export interface TokenUsage {
   inputTokens: number;
@@ -139,6 +146,42 @@ function startOfLocalDay(timestampMs: number): number {
   return date.getTime();
 }
 
+interface AccountTodayUsage {
+  usedPct: number | null;
+  basis: AccountTodayBasis;
+  baselineAt: number | null;
+}
+
+function accountTodayUsage(
+  records: readonly LocalUsageRecord[],
+  account: WeeklyRateLimit | null,
+  windowStart: number,
+  now: number,
+): AccountTodayUsage {
+  if (!account) return { usedPct: null, basis: 'unavailable', baselineAt: null };
+  const midnight = startOfLocalDay(now);
+  if (windowStart >= midnight && windowStart <= now) {
+    return { usedPct: account.usedPct, basis: 'reset', baselineAt: windowStart };
+  }
+
+  const earliest = Math.max(windowStart, midnight - DAILY_BASELINE_LOOKBACK_MS);
+  let baseline: LocalUsageRecord & { weekly: WeeklyRateLimit } | null = null;
+  for (const item of records) {
+    if (
+      !item.weekly
+      || item.weekly.resetAt !== account.resetAt
+      || item.timestampMs > midnight
+      || item.timestampMs < earliest
+    ) continue;
+    if (!baseline || item.timestampMs > baseline.timestampMs) {
+      baseline = item as LocalUsageRecord & { weekly: WeeklyRateLimit };
+    }
+  }
+  if (!baseline) return { usedPct: null, basis: 'unavailable', baselineAt: null };
+  const usedPct = Math.round(Math.max(0, account.usedPct - baseline.weekly.usedPct) * 10) / 10;
+  return { usedPct, basis: 'observed', baselineAt: baseline.timestampMs };
+}
+
 function levelFor(usedPct: number | null, guardrailPct: number): MeterLevel {
   if (usedPct === null) return 'unknown';
   if (usedPct >= guardrailPct) return 'danger';
@@ -189,6 +232,7 @@ export function buildSnapshot(
         ? '마지막 주간 사용률이 만료되었습니다. 다음 Codex 작업 후 갱신됩니다.'
         : '주간 rate_limits가 포함된 로컬 Codex 세션을 기다리는 중입니다.';
   const level = levelFor(accountUsedPct, guardrailPct);
+  const todayAccount = accountTodayUsage(values, active ? account : null, windowStart, now);
 
   return {
     generatedAt: now,
@@ -199,6 +243,9 @@ export function buildSnapshot(
     accountUsedPct,
     accountRemainingPct: accountUsedPct === null ? null : Math.max(0, 100 - accountUsedPct),
     accountObservedAt: active ? account.observedAt : null,
+    accountTodayUsedPct: todayAccount.usedPct,
+    accountTodayBasis: todayAccount.basis,
+    accountTodayBaselineAt: todayAccount.baselineAt,
     resetAt: active ? account.resetAt : null,
     windowStart,
     exactWindow: active,

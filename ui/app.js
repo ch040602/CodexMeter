@@ -35,10 +35,23 @@ function setProgress(fill, marker, used, guardrail) {
   marker.style.left = `${Math.max(1, Math.min(99, guardrail))}%`;
 }
 
+function todayPercent(snapshot) {
+  if (snapshot.accountTodayUsedPct === null) return null;
+  const value = Math.round(snapshot.accountTodayUsedPct * 10) / 10;
+  const formatted = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return `${snapshot.accountTodayBasis === 'observed' ? '≈' : ''}${formatted}%`;
+}
+
 function renderDashboard(snapshot, settings) {
   const remaining = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
   document.title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${compactNumber(snapshot.local.tokens)}`;
   $('accountUsed').textContent = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
+  $('accountTodayUsed').textContent = todayPercent(snapshot) ?? '—';
+  $('accountTodayUsed').title = snapshot.accountTodayBasis === 'reset'
+    ? '오늘 시작된 주간 제한 창의 0%부터 계산한 값입니다.'
+    : snapshot.accountTodayBasis === 'observed'
+      ? '자정 직전 로컬 관측값을 기준으로 계산한 근사값입니다.'
+      : '오늘 시작 기준값이 없어 아직 계산할 수 없습니다.';
   $('accountRemaining').textContent = remaining;
   const accountSource = snapshot.source === 'codex-local-status' ? '로컬 상태' : '세션 기록';
   $('plan').textContent = snapshot.planName ? `Codex ${snapshot.planName} · ${accountSource}` : snapshot.statusDetail;
@@ -65,21 +78,22 @@ function renderDashboard(snapshot, settings) {
 }
 
 function renderOverlay(snapshot, settings) {
+  const dailyPct = todayPercent(snapshot);
   if (settings.overlayMode === 'local') {
     $('overlayAccount').textContent = compactNumber(snapshot.localToday.tokens);
-    $('overlayAccountMeta').textContent = `오늘 · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`;
+    $('overlayAccountMeta').textContent = `오늘 · ${snapshot.localToday.requests.toLocaleString('ko-KR')}회`;
     $('overlayLocal').textContent = compactNumber(snapshot.local.tokens);
-    $('overlayLocalMeta').textContent = `이번 주 · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`;
+    $('overlayLocalMeta').textContent = `이번 주 · ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
     $('overlayTrack').hidden = true;
-    $('overlayStatus').textContent = '이 PC 세션 파일 기준';
+    $('overlayStatus').textContent = `계정 총량 중 오늘 ${dailyPct ?? '측정 중'}`;
     $('overlayGuardrail').textContent = '로컬 전용';
     return;
   }
 
   $('overlayAccount').textContent = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
-  $('overlayAccountMeta').textContent = '계정 전체 남음';
+  $('overlayAccountMeta').textContent = `계정 남음 · 오늘 ${dailyPct ?? '측정 중'}`;
   $('overlayLocal').textContent = compactNumber(snapshot.local.tokens);
-  $('overlayLocalMeta').textContent = `이 PC 이번 주 · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`;
+  $('overlayLocalMeta').textContent = `이 PC 이번 주 · ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
   $('overlayTrack').hidden = false;
   const used = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
   $('overlayStatus').textContent = snapshot.guardrailExceeded

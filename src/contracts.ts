@@ -1,6 +1,7 @@
 export type MeterLevel = 'normal' | 'warning' | 'danger' | 'unknown';
 export type MeterStatus = 'ready' | 'waiting' | 'expired' | 'error';
 export type OverlayMode = 'account' | 'local';
+export type AccountTodayBasis = 'reset' | 'observed' | 'unavailable';
 
 export interface LocalTotals {
   tokens: number;
@@ -24,6 +25,9 @@ export interface MeterSnapshot {
   accountUsedPct: number | null;
   accountRemainingPct: number | null;
   accountObservedAt: number | null;
+  accountTodayUsedPct: number | null;
+  accountTodayBasis: AccountTodayBasis;
+  accountTodayBaselineAt: number | null;
   resetAt: number | null;
   windowStart: number;
   exactWindow: boolean;

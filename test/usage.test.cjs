@@ -109,4 +109,40 @@ test('does not count pre-reset activity in today usage after a weekly reset', ()
 
   assert.equal(snapshot.local.tokens, 500);
   assert.equal(snapshot.localToday.tokens, 500);
+  assert.equal(snapshot.accountTodayUsedPct, 7);
+  assert.equal(snapshot.accountTodayBasis, 'reset');
+});
+
+test('calculates today share of the weekly account capacity from a recent local baseline', () => {
+  const now = new Date(2026, 7, 30, 18, 0, 0, 0).getTime();
+  const resetAt = now + 4 * 24 * 60 * 60 * 1_000;
+  const baseline = parseLocalUsageLine(
+    line(new Date(2026, 7, 29, 23, 50, 0, 0).getTime(), 31, resetAt, 300),
+    'baseline',
+  );
+  const today = parseLocalUsageLine(
+    line(new Date(2026, 7, 30, 17, 0, 0, 0).getTime(), 37, resetAt, 500),
+    'today-current',
+  );
+
+  const snapshot = buildSnapshot([baseline, today], 80, now);
+
+  assert.equal(snapshot.accountTodayUsedPct, 6);
+  assert.equal(snapshot.accountTodayBasis, 'observed');
+  assert.equal(snapshot.accountTodayBaselineAt, baseline.timestampMs);
+});
+
+test('waits for a trustworthy daily baseline instead of inventing a percentage', () => {
+  const now = new Date(2026, 7, 30, 18, 0, 0, 0).getTime();
+  const resetAt = now + 4 * 24 * 60 * 60 * 1_000;
+  const today = parseLocalUsageLine(
+    line(new Date(2026, 7, 30, 17, 0, 0, 0).getTime(), 37, resetAt, 500),
+    'today-only',
+  );
+
+  const snapshot = buildSnapshot([today], 80, now);
+
+  assert.equal(snapshot.accountTodayUsedPct, null);
+  assert.equal(snapshot.accountTodayBasis, 'unavailable');
+  assert.equal(snapshot.accountTodayBaselineAt, null);
 });

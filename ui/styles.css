@@ -50,6 +50,7 @@ h1 { margin: 0; font-size: 24px; line-height: 1.1; letter-spacing: -.035em; }
 .account-numbers { align-items: flex-end; margin: 22px 0 15px; }
 .hero-number { font-size: 48px; line-height: .9; letter-spacing: -.065em; font-variant-numeric: tabular-nums; }
 .unit { margin-left: 8px; color: var(--muted); font-size: 12px; }
+.usage-secondary-group { display: flex; align-items: flex-end; gap: 18px; }
 .used-secondary { display: grid; justify-items: end; gap: 3px; }
 .used-secondary strong { font-size: 21px; font-variant-numeric: tabular-nums; }
 .used-secondary span { color: var(--muted); font-size: 10px; }

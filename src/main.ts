@@ -53,6 +53,13 @@ function percent(value: number | null): string {
   return value === null ? '—' : `${Math.round(value)}%`;
 }
 
+function todayPercent(snapshotValue: MeterSnapshot): string {
+  if (snapshotValue.accountTodayUsedPct === null) return '측정 중';
+  const value = Math.round(snapshotValue.accountTodayUsedPct * 10) / 10;
+  const formatted = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return `${snapshotValue.accountTodayBasis === 'observed' ? '약 ' : ''}${formatted}%`;
+}
+
 const GLYPHS: Record<string, readonly number[]> = {
   '0': [0b111, 0b101, 0b101, 0b101, 0b111],
   '1': [0b010, 0b110, 0b010, 0b010, 0b111],
@@ -249,6 +256,7 @@ function trayTooltip(): string {
   return [
     'Codex Meter',
     `계정 이번 주 (${accountSource}): 남음 ${percent(snapshot.accountRemainingPct)} · 사용 ${percent(snapshot.accountUsedPct)}`,
+    `계정 총량 중 오늘: ${todayPercent(snapshot)}`,
     `이 PC 오늘: ${compactTokens(snapshot.localToday.tokens)} tokens · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`,
     `이 PC 이번 주: ${compactTokens(snapshot.local.tokens)} tokens · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`,
     `경고선: 계정 사용 ${settings.guardrailPct}%`,
@@ -270,6 +278,7 @@ function rebuildTray(): void {
   }
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: `계정 남음 ${remaining} · 사용 ${used}`, click: () => dashboard?.show() },
+    { label: `계정 총량 중 오늘 ${todayPercent(snapshot)}`, click: () => dashboard?.show() },
     {
       label: `이 PC 오늘 ${compactTokens(snapshot.localToday.tokens)} tokens · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`,
       click: () => dashboard?.show(),
