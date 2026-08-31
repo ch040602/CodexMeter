@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseCodexRateLimits } = require('../dist/codexStatus.js');
+const { parseCodexRateLimits, parseCodexTokenUsage } = require('../dist/codexStatus.js');
 
 test('reads the weekly Codex bucket used by the local status screen', () => {
   const observedAt = Date.parse('2026-08-30T12:00:00.000Z');
@@ -39,4 +39,24 @@ test('rejects a response without the main weekly Codex window', () => {
       primary: { usedPercent: 42, windowDurationMins: 300, resetsAt: 1_788_108_864 },
     },
   }), null);
+});
+
+test('parses account token usage buckets from the local app-server', () => {
+  assert.deepEqual(parseCodexTokenUsage({
+    summary: { lifetimeTokens: 1_000_000 },
+    dailyUsageBuckets: [
+      { startDate: '2026-08-30', tokens: 4_000 },
+      { startDate: 'invalid', tokens: 9_000 },
+      { startDate: '2026-08-31', tokens: -2 },
+    ],
+  }), {
+    dailyUsageBuckets: [
+      { startDate: '2026-08-30', tokens: 4_000 },
+      { startDate: '2026-08-31', tokens: 0 },
+    ],
+  });
+});
+
+test('returns no account token usage when the response has no buckets', () => {
+  assert.equal(parseCodexTokenUsage({ summary: { lifetimeTokens: 1_000 } }), null);
 });

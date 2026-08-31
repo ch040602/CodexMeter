@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { open, opendir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import type { MeterSnapshot } from './contracts';
+import type { AccountTokenUsage, MeterSnapshot } from './contracts';
 import {
   buildSnapshot,
   parseLocalUsageLine,
@@ -194,6 +194,7 @@ export class LocalUsageScanner {
     guardrailPct: number,
     now = Date.now(),
     accountRateLimit: AccountRateLimit | null = null,
+    accountTokenUsage: AccountTokenUsage | null = null,
   ): Promise<MeterSnapshot> {
     const discovered = await discoverJsonlFiles(this.roots, now - WEEK_MS - 24 * 60 * 60 * 1_000);
     let bytesRead = await this.updateProbes(discovered);
@@ -228,7 +229,7 @@ export class LocalUsageScanner {
       [...this.fileCache.values()].flatMap(item => item.records),
       guardrailPct,
       now,
-      { filesIndexed: this.fileCache.size, bytesRead, accountRateLimit },
+      { filesIndexed: this.fileCache.size, bytesRead, accountRateLimit, accountTokenUsage },
     );
     this.activeWindowStart = snapshot.exactWindow ? snapshot.windowStart : null;
     return snapshot;

@@ -2,11 +2,13 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
+import type { AccountTokenUsage } from './contracts';
 import type { AccountRateLimit } from './usage';
 
 const WEEK_MINUTES = 10_080;
 const INITIALIZE_TIMEOUT_MS = 5_000;
 const STATUS_TIMEOUT_MS = 8_000;
+const TOKEN_USAGE_CACHE_MS = 60_000;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -54,6 +56,23 @@ export function parseCodexRateLimits(value: unknown, observedAt = Date.now()): A
   return null;
 }
 
+export function parseCodexTokenUsage(value: unknown): AccountTokenUsage | null {
+  const result = record(value);
+  if (!Array.isArray(result?.dailyUsageBuckets)) return null;
+  const dailyUsageBuckets = result.dailyUsageBuckets.flatMap(item => {
+    const bucket = record(item);
+    const startDate = typeof bucket?.startDate === 'string' ? bucket.startDate.trim() : '';
+    const tokens = finite(bucket?.tokens);
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(startDate)
+      && !Number.isNaN(Date.parse(`${startDate}T00:00:00Z`));
+    if (!validDate || tokens === null) {
+      return [];
+    }
+    return [{ startDate, tokens: Math.max(0, tokens) }];
+  });
+  return dailyUsageBuckets.length > 0 ? { dailyUsageBuckets } : null;
+}
+
 function installedCodexBinary(): string | null {
   if (process.platform !== 'win32' || !process.env.APPDATA) return null;
   const target = process.arch === 'arm64' ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-msvc';
@@ -95,6 +114,7 @@ export class CodexStatusClient {
   private ready: Promise<void> | null = null;
   private nextId = 1;
   private pending = new Map<number, PendingRequest>();
+  private tokenUsageCache: { observedAt: number; value: AccountTokenUsage | null } | null = null;
   private closed = false;
 
   async readWeeklyLimit(): Promise<AccountRateLimit | null> {
@@ -105,6 +125,25 @@ export class CodexStatusClient {
       return parseCodexRateLimits(result);
     } catch {
       this.stopChild(new Error('Codex 로컬 상태 연결이 끊겼습니다.'));
+      return null;
+    }
+  }
+
+  async readTokenUsage(): Promise<AccountTokenUsage | null> {
+    if (!this.binaryPath || this.closed) return null;
+    const now = Date.now();
+    if (this.tokenUsageCache && now - this.tokenUsageCache.observedAt < TOKEN_USAGE_CACHE_MS) {
+      return this.tokenUsageCache.value;
+    }
+    try {
+      await this.ensureStarted();
+      const result = await this.request('account/usage/read', undefined, STATUS_TIMEOUT_MS);
+      const value = parseCodexTokenUsage(result);
+      this.tokenUsageCache = { observedAt: Date.now(), value };
+      return value;
+    } catch {
+      // Older Codex builds may reject this optional method; keep the rate-limit channel alive.
+      this.tokenUsageCache = { observedAt: Date.now(), value: null };
       return null;
     }
   }

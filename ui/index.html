@@ -68,8 +68,16 @@
             <strong id="localRequests">0</strong>
             <span>요청</span>
           </div>
+          <div>
+            <strong id="localShareToday">—</strong>
+            <span>이 PC 비중 · 오늘</span>
+          </div>
+          <div>
+            <strong id="localShareWeek">—</strong>
+            <span>이 PC 비중 · 이번 주</span>
+          </div>
         </div>
-        <p id="capacityNote" class="truth-note"></p>
+        <p id="shareNote" class="truth-note"></p>
       </section>
 
       <section class="controls" aria-labelledby="guardrailTitle">
@@ -85,7 +93,7 @@
         <div class="setting-row">
           <div>
             <p class="label">오버레이 표시</p>
-            <p class="meta">오버레이에서는 토큰 수 대신 오늘·이번 주 계정 총량 퍼센트를 우선 표시합니다.</p>
+            <p class="meta">오버레이는 계정 잔여율과 이 PC의 계정 토큰 비중을 퍼센트로 표시합니다.</p>
           </div>
           <select id="overlayMode" aria-label="오버레이 표시 항목">
             <option value="account">계정 + 이 PC</option>
@@ -121,11 +129,11 @@
       <div class="overlay-content">
         <div class="overlay-account">
           <strong id="overlayAccount">—</strong>
-          <span id="overlayAccountMeta">계정 잔여</span>
+          <span id="overlayAccountMeta">계정 잔여 · 이번 주</span>
         </div>
         <div class="overlay-local">
-          <strong id="overlayLocal">0</strong>
-          <span id="overlayLocalMeta">계정 사용 · 이번 주</span>
+          <strong id="overlayLocal">—</strong>
+          <span id="overlayLocalMeta">이 PC 비중 · 이번 주</span>
         </div>
       </div>
       <div id="overlayTrack" class="overlay-track"><div id="overlayFill"></div><div id="overlayMarker"></div></div>

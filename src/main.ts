@@ -53,6 +53,13 @@ function percent(value: number | null): string {
   return value === null ? '—' : `${Math.round(value)}%`;
 }
 
+function sharePercent(value: number | null, approximate = false): string {
+  if (value === null) return '—';
+  const prefix = approximate ? '약 ' : '';
+  if (value > 0 && value < 0.1) return `${prefix}<0.1%`;
+  return `${prefix}${Number.isInteger(value) ? value : value.toFixed(1)}%`;
+}
+
 function todayPercent(snapshotValue: MeterSnapshot): string {
   if (snapshotValue.accountTodayUsedPct === null) return '측정 중';
   const value = Math.round(snapshotValue.accountTodayUsedPct * 10) / 10;
@@ -257,6 +264,7 @@ function trayTooltip(): string {
     'Codex Meter',
     `계정 이번 주 (${accountSource}): 남음 ${percent(snapshot.accountRemainingPct)} · 사용 ${percent(snapshot.accountUsedPct)}`,
     `계정 총량 중 오늘: ${todayPercent(snapshot)}`,
+    `이 PC 계정 토큰 비중: 오늘 ${sharePercent(snapshot.localAccountShareTodayPct, snapshot.localShareBasis === 'recent-account-token-usage')} · 이번 주 ${sharePercent(snapshot.localAccountSharePct, snapshot.localShareBasis === 'recent-account-token-usage')}`,
     `이 PC 오늘: ${compactTokens(snapshot.localToday.tokens)} tokens · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`,
     `이 PC 이번 주: ${compactTokens(snapshot.local.tokens)} tokens · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`,
     `경고선: 계정 사용 ${settings.guardrailPct}%`,
@@ -279,6 +287,10 @@ function rebuildTray(): void {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: `계정 남음 ${remaining} · 사용 ${used}`, click: () => dashboard?.show() },
     { label: `계정 총량 중 오늘 ${todayPercent(snapshot)}`, click: () => dashboard?.show() },
+    {
+      label: `이 PC 계정 토큰 비중 · 오늘 ${sharePercent(snapshot.localAccountShareTodayPct, snapshot.localShareBasis === 'recent-account-token-usage')} · 이번 주 ${sharePercent(snapshot.localAccountSharePct, snapshot.localShareBasis === 'recent-account-token-usage')}`,
+      click: () => dashboard?.show(),
+    },
     {
       label: `이 PC 오늘 ${compactTokens(snapshot.localToday.tokens)} tokens · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`,
       click: () => dashboard?.show(),
@@ -315,8 +327,11 @@ function notifyIfNeeded(): void {
 
 async function refresh(): Promise<MeterSnapshot> {
   if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = codexStatus.readWeeklyLimit()
-    .then(accountRateLimit => scanner.scan(settings.guardrailPct, Date.now(), accountRateLimit))
+  refreshInFlight = Promise.all([
+    codexStatus.readWeeklyLimit(),
+    codexStatus.readTokenUsage(),
+  ])
+    .then(([accountRateLimit, accountTokenUsage]) => scanner.scan(settings.guardrailPct, Date.now(), accountRateLimit, accountTokenUsage))
     .catch(error => buildSnapshot([], settings.guardrailPct, Date.now(), {
       error: error instanceof Error ? error.message : '로컬 세션을 읽지 못했습니다.',
     }))

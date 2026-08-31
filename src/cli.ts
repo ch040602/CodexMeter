@@ -7,8 +7,11 @@ async function main(): Promise<void> {
   const roots = ['sessions', 'archived_sessions'].map(name => path.join(os.homedir(), '.codex', name));
   const status = new CodexStatusClient();
   try {
-    const accountRateLimit = await status.readWeeklyLimit();
-    const snapshot = await new LocalUsageScanner(roots).scan(80, Date.now(), accountRateLimit);
+    const [accountRateLimit, accountTokenUsage] = await Promise.all([
+      status.readWeeklyLimit(),
+      status.readTokenUsage(),
+    ]);
+    const snapshot = await new LocalUsageScanner(roots).scan(80, Date.now(), accountRateLimit, accountTokenUsage);
     process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
   } finally {
     status.close();
