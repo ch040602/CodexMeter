@@ -277,6 +277,7 @@ function trayTooltip(): string {
     `계정 이번 주 (${accountSource}): 남음 ${percent(snapshot.accountRemainingPct)} · 사용 ${percent(snapshot.accountUsedPct)}`,
     `계정 총량 중 오늘: ${todayPercent(snapshot)}`,
     `계정 토큰 이번 주: ${tokenSummary(snapshot.accountWindowTokens)} · 추정 주간 절대 한도 ${tokenSummary(snapshot.accountWeeklyLimitTokens)}`,
+    `계정 사용 중 이 PC 비중: 오늘 ${quotaPercent(snapshot.localAccountUsageShareTodayPct)} · 이번 주 ${quotaPercent(snapshot.localAccountUsageSharePct)}`,
     `이 PC 요금제 추정 사용: 오늘 ${quotaPercent(snapshot.localQuotaUsedTodayPct)} · 이번 주 ${quotaPercent(snapshot.localQuotaUsedPct)}`,
     `이 PC 오늘: ${compactTokens(snapshot.localToday.tokens)} tokens · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`,
     `이 PC 이번 주: ${compactTokens(snapshot.local.tokens)} tokens · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`,
@@ -302,6 +303,10 @@ function rebuildTray(): void {
     { label: `계정 총량 중 오늘 ${todayPercent(snapshot)}`, click: () => dashboard?.show() },
     {
       label: `계정 토큰 이번 주 ${tokenSummary(snapshot.accountWindowTokens)} · 추정 주간 절대 한도 ${tokenSummary(snapshot.accountWeeklyLimitTokens)}`,
+      click: () => dashboard?.show(),
+    },
+    {
+      label: `계정 사용 중 이 PC 비중 · 오늘 ${quotaPercent(snapshot.localAccountUsageShareTodayPct)} · 이번 주 ${quotaPercent(snapshot.localAccountUsageSharePct)}`,
       click: () => dashboard?.show(),
     },
     {

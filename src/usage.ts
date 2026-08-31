@@ -155,20 +155,36 @@ function localDateKey(timestampMs: number): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function accountWindowTokenTotal(
+interface AccountWindowTokenTotals {
+  weekly: number | null;
+  today: number | null;
+}
+
+function accountWindowTokenTotals(
   accountUsage: AccountTokenUsage | null | undefined,
   windowStart: number,
   now: number,
-): number | null {
-  if (!accountUsage) return null;
+): AccountWindowTokenTotals {
+  if (!accountUsage) return { weekly: null, today: null };
   const firstDate = localDateKey(windowStart);
   const todayDate = localDateKey(now);
-  const matching = accountUsage.dailyUsageBuckets.filter(bucket => (
-    bucket.startDate >= firstDate && bucket.startDate <= todayDate
-  ));
-  return matching.length > 0
-    ? matching.reduce((sum, bucket) => sum + bucket.tokens, 0)
-    : null;
+  let weekly = 0;
+  let today = 0;
+  let hasWeekly = false;
+  let hasToday = false;
+  for (const bucket of accountUsage.dailyUsageBuckets) {
+    if (bucket.startDate < firstDate || bucket.startDate > todayDate) continue;
+    hasWeekly = true;
+    weekly += bucket.tokens;
+    if (bucket.startDate === todayDate) {
+      hasToday = true;
+      today += bucket.tokens;
+    }
+  }
+  return {
+    weekly: hasWeekly ? weekly : null,
+    today: hasToday ? today : null,
+  };
 }
 
 function inferWeeklyLimit(accountUsedPct: number | null, accountTokens: number | null): number | null {
@@ -181,6 +197,12 @@ function quotaPercent(localTokens: number, weeklyLimitTokens: number | null): nu
   if (weeklyLimitTokens === null || weeklyLimitTokens <= 0) return null;
   const value = Math.max(0, Math.min(100, localTokens / weeklyLimitTokens * 100));
   return Math.round(value * 100) / 100;
+}
+
+function ratioPercent(localTokens: number, accountTokens: number | null): number | null {
+  if (accountTokens === null || accountTokens <= 0) return null;
+  const value = localTokens / accountTokens * 100;
+  return Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
 }
 
 interface AccountTodayUsage {
@@ -273,7 +295,17 @@ export function buildSnapshot(
   const todayAccount = accountTodayUsage(values, active ? account : null, windowStart, now);
   const local = totals(values, windowStart, now);
   const localToday = totals(values, Math.max(windowStart, startOfLocalDay(now)), now);
-  const accountWindowTokens = accountWindowTokenTotal(diagnostics.accountTokenUsage, windowStart, now);
+  const accountTokenTotals = accountWindowTokenTotals(diagnostics.accountTokenUsage, windowStart, now);
+  const localAccountUsageSharePct = ratioPercent(local.tokens, accountTokenTotals.weekly);
+  const localAccountUsageShareTodayPct = ratioPercent(localToday.tokens, accountTokenTotals.today);
+  const accountUsageShareReason = accountTokenTotals.weekly === null || accountTokenTotals.weekly <= 0
+    ? diagnostics.accountTokenUsage
+      ? '현재 주간 계정 토큰 버킷이 없거나 아직 0이라 계정 사용량 중 이 PC 비중을 계산할 수 없습니다.'
+      : 'Codex account/usage/read를 읽지 못해 계정 사용량 중 이 PC 비중을 계산할 수 없습니다.'
+    : accountTokenTotals.today === null || accountTokenTotals.today <= 0
+      ? '이번 주 비중은 현재 주간 계정 토큰으로 계산했습니다. 오늘 계정 토큰 버킷은 아직 없어 오늘 비중은 계산 대기입니다.'
+      : '계정 사용량 중 이 PC 비중 = 이 PC 토큰 ÷ 같은 주간 계정 토큰입니다.';
+  const accountWindowTokens = accountTokenTotals.weekly;
   const accountWeeklyLimitTokens = inferWeeklyLimit(accountUsedPct, accountWindowTokens);
   const localQuotaUsedPct = quotaPercent(local.tokens, accountWeeklyLimitTokens);
   const localQuotaUsedTodayPct = quotaPercent(localToday.tokens, accountWeeklyLimitTokens);
@@ -285,7 +317,7 @@ export function buildSnapshot(
       : accountUsedPct <= 0
         ? '계정 사용률이 0%라 토큰 수와 퍼센트로 주간 한도를 역산할 수 없습니다.'
         : diagnostics.accountTokenUsage
-          ? '현재 주간 계정 토큰 버킷이 없어 주간 한도를 계산할 수 없습니다.'
+          ? '현재 주간 계정 토큰 버킷이 없거나 아직 0이라 주간 한도를 계산할 수 없습니다.'
           : 'Codex account/usage/read를 읽지 못해 주간 한도를 계산할 수 없습니다.';
 
   return {
@@ -305,6 +337,9 @@ export function buildSnapshot(
     exactWindow: active,
     local,
     localToday,
+    localAccountUsageSharePct,
+    localAccountUsageShareTodayPct,
+    accountUsageShareReason,
     accountWindowTokens,
     accountWeeklyLimitTokens,
     localQuotaUsedPct,

@@ -49,6 +49,13 @@ function localQuotaPercent(snapshot, today = false) {
   return `≈${Number.isInteger(value) ? value : value.toFixed(value < 1 ? 2 : 1)}%`;
 }
 
+function accountUsageSharePercent(snapshot, today = false) {
+  const value = today ? snapshot.localAccountUsageShareTodayPct : snapshot.localAccountUsageSharePct;
+  if (value === null) return null;
+  if (value > 0 && value < 0.1) return '≈<0.1%';
+  return `≈${Number.isInteger(value) ? value : value.toFixed(value < 1 ? 2 : 1)}%`;
+}
+
 function tokenSummary(value) {
   return value === null ? '계산 대기' : `${compactNumber(value)} tokens`;
 }
@@ -74,8 +81,12 @@ function renderDashboard(snapshot, settings) {
   setProgress($('accountFill'), $('guardrailMarker'), snapshot.accountUsedPct, settings.guardrailPct);
   $('localTokens').textContent = compactNumber(snapshot.local.tokens);
   $('localRequests').textContent = snapshot.local.requests.toLocaleString('ko-KR');
+  $('localAccountUsageShareWeek').textContent = accountUsageSharePercent(snapshot) ?? '계산 대기';
+  $('localAccountUsageShareToday').textContent = accountUsageSharePercent(snapshot, true) ?? '계산 대기';
   $('localQuotaToday').textContent = localQuotaPercent(snapshot, true) ?? '—';
   $('localQuotaWeek').textContent = localQuotaPercent(snapshot) ?? '—';
+  $('localAccountUsageShareWeek').title = snapshot.accountUsageShareReason;
+  $('localAccountUsageShareToday').title = snapshot.accountUsageShareReason;
   $('localQuotaToday').title = snapshot.accountQuotaReason;
   $('localQuotaWeek').title = snapshot.accountQuotaReason;
   $('windowLabel').textContent = snapshot.exactWindow ? '계정 제한 창과 동일한 7일' : '정확한 제한 창 대기 · 최근 7일';
@@ -98,6 +109,8 @@ function renderOverlay(snapshot, settings) {
   const dailyPct = todayPercent(snapshot);
   const localTodayPct = localQuotaPercent(snapshot, true);
   const localWeekPct = localQuotaPercent(snapshot);
+  const accountShareTodayPct = accountUsageSharePercent(snapshot, true);
+  const accountShareWeekPct = accountUsageSharePercent(snapshot);
   const remaining = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
   const used = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
   $('overlay').classList.toggle('overlay-minimal', settings.overlayMode === 'minimal');
@@ -105,7 +118,7 @@ function renderOverlay(snapshot, settings) {
     $('overlayAccount').textContent = remaining;
     $('overlayLocal').textContent = localWeekPct ?? '—';
     $('overlayAccount').title = 'Codex 계정 주간 잔여율';
-    $('overlayLocal').title = snapshot.accountQuotaReason;
+    $('overlayLocal').title = `${snapshot.accountQuotaReason} ${snapshot.accountUsageShareReason}`;
     $('overlayTrack').hidden = true;
     return;
   }
@@ -114,11 +127,11 @@ function renderOverlay(snapshot, settings) {
     $('overlayAccountMeta').textContent = '이 PC 요금제 추정 · 오늘';
     $('overlayLocal').textContent = localWeekPct ?? '—';
     $('overlayLocalMeta').textContent = '이 PC 요금제 추정 · 이번 주';
-    $('overlayAccount').title = snapshot.accountQuotaReason;
-    $('overlayLocal').title = snapshot.accountQuotaReason;
+    $('overlayAccount').title = `${snapshot.accountQuotaReason} ${snapshot.accountUsageShareReason}`;
+    $('overlayLocal').title = `${snapshot.accountQuotaReason} ${snapshot.accountUsageShareReason}`;
     $('overlayTrack').hidden = true;
-    $('overlayStatus').textContent = `이 PC 요금제 추정 · 오늘 ${localTodayPct ?? '측정 중'}`;
-    $('overlayGuardrail').textContent = `이번 주 ${localWeekPct ?? '측정 중'} · 요청 오늘 ${snapshot.localToday.requests.toLocaleString('ko-KR')}회 · 주간 ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
+    $('overlayStatus').textContent = `이 PC 요금제 추정 · 오늘 ${localTodayPct ?? '측정 중'} · 계정 비중 ${accountShareTodayPct ?? '측정 중'}`;
+    $('overlayGuardrail').textContent = `요금제 이번 주 ${localWeekPct ?? '측정 중'} · 계정 비중 ${accountShareWeekPct ?? '측정 중'} · 요청 오늘 ${snapshot.localToday.requests.toLocaleString('ko-KR')}회 · 주간 ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
     return;
   }
 
@@ -127,12 +140,12 @@ function renderOverlay(snapshot, settings) {
   $('overlayLocal').textContent = localWeekPct ?? '—';
   $('overlayLocalMeta').textContent = '이 PC 요금제 추정 · 이번 주';
   $('overlayAccount').title = 'Codex 계정 주간 잔여율';
-  $('overlayLocal').title = snapshot.accountQuotaReason;
+  $('overlayLocal').title = `${snapshot.accountQuotaReason} ${snapshot.accountUsageShareReason}`;
   $('overlayTrack').hidden = false;
   $('overlayStatus').textContent = snapshot.guardrailExceeded
     ? `사용 ${used} · 경고선 도달`
     : `사용 ${used} · ${shortReset(snapshot.resetAt)}`;
-  $('overlayGuardrail').textContent = `이 PC 오늘 ${localTodayPct ?? '측정 중'} · 경고 ${settings.guardrailPct}%`;
+  $('overlayGuardrail').textContent = `이 PC 요금제 오늘 ${localTodayPct ?? '측정 중'} · 계정 비중 이번 주 ${accountShareWeekPct ?? '측정 중'} · 경고 ${settings.guardrailPct}%`;
   setProgress($('overlayFill'), $('overlayMarker'), snapshot.accountUsedPct, settings.guardrailPct);
 }
 

@@ -43,6 +43,9 @@ export interface MeterSnapshot {
   exactWindow: boolean;
   local: LocalTotals;
   localToday: LocalTotals;
+  localAccountUsageSharePct: number | null;
+  localAccountUsageShareTodayPct: number | null;
+  accountUsageShareReason: string;
   accountWindowTokens: number | null;
   accountWeeklyLimitTokens: number | null;
   localQuotaUsedPct: number | null;

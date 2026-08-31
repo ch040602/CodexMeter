@@ -59,11 +59,11 @@ h1 { margin: 0; font-size: 24px; line-height: 1.1; letter-spacing: -.035em; }
 .marker, .overlay-track > div:last-child { position: absolute; top: -3px; width: 1px; height: 13px; background: #d9dde0; opacity: .8; }
 .track-caption { display: flex; justify-content: space-between; margin-top: 8px; color: var(--dim); font-size: 10px; }
 
-.local-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
-.local-grid > div { padding: 12px; background: var(--panel-quiet); border-left: 2px solid var(--line); }
-.local-grid strong { display: block; font-size: 20px; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.local-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.local-grid > div { min-width: 0; padding: 10px 8px; background: var(--panel-quiet); border-left: 2px solid var(--line); }
+.local-grid strong { display: block; font-size: 18px; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
 .local-grid > div:nth-child(n + 3) strong { color: var(--level); }
-.local-grid span { display: block; margin-top: 4px; color: var(--dim); font-size: 10px; }
+.local-grid span { display: block; min-height: 2.7em; margin-top: 4px; color: var(--dim); font-size: 10px; line-height: 1.35; }
 .truth-note { margin: 13px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10.5px; line-height: 1.55; }
 
 .range-row { gap: 14px; margin-top: 14px; }
