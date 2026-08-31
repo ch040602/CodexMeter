@@ -252,7 +252,7 @@ export function buildSnapshot(
     local: totals(values, windowStart, now),
     localToday: totals(values, Math.max(windowStart, startOfLocalDay(now)), now),
     localCapacityPct: null,
-    localCapacityReason: '계정 한도 대비 이 PC의 비율은 로컬 로그만으로 정확히 계산할 수 없어 표시하지 않습니다.',
+    localCapacityReason: '이 PC의 토큰·요청과 계정 잔여율은 별도 지표입니다. 요금제의 절대 토큰 총량이 로컬에 없어 이 PC 값을 계정 퍼센트로 환산하지 않습니다.',
     guardrailPct,
     guardrailExceeded: level === 'danger',
     level,

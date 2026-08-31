@@ -86,13 +86,13 @@ function renderOverlay(snapshot, settings) {
   const dailyPct = todayPercent(snapshot);
   const weeklyPct = weeklyPercent(snapshot);
   if (settings.overlayMode === 'local') {
-    $('overlayAccount').textContent = dailyPct ?? '—';
-    $('overlayAccountMeta').textContent = '오늘 · 계정 주간 총량';
+    $('overlayAccount').textContent = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
+    $('overlayAccountMeta').textContent = '계정 잔여 · 이번 주';
     $('overlayLocal').textContent = weeklyPct ?? '—';
-    $('overlayLocalMeta').textContent = '이번 주 · 계정 사용률';
+    $('overlayLocalMeta').textContent = '계정 사용 · 이번 주';
     $('overlayTrack').hidden = true;
-    $('overlayStatus').textContent = '퍼센트는 계정 전체 기준';
-    $('overlayGuardrail').textContent = '이 PC 토큰은 대시보드';
+    $('overlayStatus').textContent = `오늘 계정 사용 ${dailyPct ?? '측정 중'}`;
+    $('overlayGuardrail').textContent = `이 PC 요청 오늘 ${snapshot.localToday.requests.toLocaleString('ko-KR')}회 · 주간 ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
     return;
   }
 
@@ -105,7 +105,7 @@ function renderOverlay(snapshot, settings) {
   $('overlayStatus').textContent = snapshot.guardrailExceeded
     ? `사용 ${used} · 경고선 도달`
     : `사용 ${used} · ${shortReset(snapshot.resetAt)}`;
-  $('overlayGuardrail').textContent = `경고 ${settings.guardrailPct}%`;
+  $('overlayGuardrail').textContent = `경고 ${settings.guardrailPct}% · 이 PC ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
   setProgress($('overlayFill'), $('overlayMarker'), snapshot.accountUsedPct, settings.guardrailPct);
 }
 
