@@ -14,6 +14,7 @@ const {
 test('accepts only the supported overlay modes', () => {
   assert.equal(normalizeOverlayMode('local'), 'local');
   assert.equal(normalizeOverlayMode('account'), 'account');
+  assert.equal(normalizeOverlayMode('minimal'), 'minimal');
   assert.equal(normalizeOverlayMode('everything'), 'account');
 });
 

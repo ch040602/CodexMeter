@@ -1,6 +1,6 @@
 export type MeterLevel = 'normal' | 'warning' | 'danger' | 'unknown';
 export type MeterStatus = 'ready' | 'waiting' | 'expired' | 'error';
-export type OverlayMode = 'account' | 'local';
+export type OverlayMode = 'account' | 'local' | 'minimal';
 export type AccountTodayBasis = 'reset' | 'observed' | 'unavailable';
 export type LocalShareBasis = 'account-token-usage' | 'recent-account-token-usage' | 'unavailable';
 

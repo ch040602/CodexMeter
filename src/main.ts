@@ -24,8 +24,8 @@ import { normalizeOverlayMode, normalizeOverlayOpacity, readSettings, writeSetti
 import { buildSnapshot, normalizeGuardrail } from './usage';
 
 const REFRESH_MS = 20_000;
-const OVERLAY_WIDTH = 350;
-const OVERLAY_HEIGHT = 166;
+const STANDARD_OVERLAY_SIZE = { width: 350, height: 166 } as const;
+const MINIMAL_OVERLAY_SIZE = { width: 150, height: 48 } as const;
 const roots = ['sessions', 'archived_sessions'].map(name => path.join(os.homedir(), '.codex', name));
 const scanner = new LocalUsageScanner(roots);
 const codexStatus = new CodexStatusClient();
@@ -154,14 +154,20 @@ function queueSettingsWrite(): Promise<void> {
   return pending;
 }
 
-function resolvedOverlayPosition(): OverlayPosition {
-  const requested = settings.overlayPosition;
+function overlaySize(mode: MeterSettings['overlayMode']): Readonly<{ width: number; height: number }> {
+  return mode === 'minimal' ? MINIMAL_OVERLAY_SIZE : STANDARD_OVERLAY_SIZE;
+}
+
+function resolvedOverlayPosition(
+  size: Readonly<{ width: number; height: number }>,
+  requested: OverlayPosition | null = settings.overlayPosition,
+): OverlayPosition {
   const display = requested
     ? screen.getDisplayNearestPoint(requested)
     : screen.getPrimaryDisplay();
   const area = display.workArea;
-  const maxX = Math.max(area.x, area.x + area.width - OVERLAY_WIDTH);
-  const maxY = Math.max(area.y, area.y + area.height - OVERLAY_HEIGHT);
+  const maxX = Math.max(area.x, area.x + area.width - size.width);
+  const maxY = Math.max(area.y, area.y + area.height - size.height);
   if (!requested) return { x: Math.max(area.x, maxX - 16), y: Math.min(maxY, area.y + 16) };
   return {
     x: Math.max(area.x, Math.min(maxX, requested.x)),
@@ -203,15 +209,11 @@ function createDashboard(): BrowserWindow {
 }
 
 function createOverlay(): BrowserWindow {
-  const position = resolvedOverlayPosition();
+  const size = overlaySize(settings.overlayMode);
+  const position = resolvedOverlayPosition(size);
   const window = new BrowserWindow({
     ...position,
-    width: OVERLAY_WIDTH,
-    height: OVERLAY_HEIGHT,
-    minWidth: OVERLAY_WIDTH,
-    minHeight: OVERLAY_HEIGHT,
-    maxWidth: OVERLAY_WIDTH,
-    maxHeight: OVERLAY_HEIGHT,
+    ...size,
     frame: false,
     transparent: false,
     alwaysOnTop: true,
@@ -250,6 +252,13 @@ function createOverlay(): BrowserWindow {
     if (positionSaveTimer) clearTimeout(positionSaveTimer);
   });
   return window;
+}
+
+function resizeOverlay(window: BrowserWindow, mode: MeterSettings['overlayMode']): void {
+  const size = overlaySize(mode);
+  const [x, y] = window.getPosition();
+  const position = resolvedOverlayPosition(size, { x, y });
+  window.setBounds({ ...position, ...size });
 }
 
 function sendState(): void {
@@ -373,7 +382,9 @@ async function setOverlayOpacity(value: unknown): Promise<MeterSettings> {
 }
 
 async function setOverlayMode(value: unknown): Promise<MeterSettings> {
-  settings = { ...settings, overlayMode: normalizeOverlayMode(value) };
+  const overlayMode = normalizeOverlayMode(value);
+  settings = { ...settings, overlayMode };
+  if (overlay && !overlay.isDestroyed()) resizeOverlay(overlay, overlayMode);
   await persistSettings();
   return settings;
 }

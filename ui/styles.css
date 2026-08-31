@@ -112,5 +112,37 @@ footer { margin-top: 14px; color: var(--dim); font-size: 9.5px; }
 .overlay-account span, .overlay-local span { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; }
 .overlay-local { text-align: right; }
 .overlay-local strong { font-size: 30px; line-height: .9; font-variant-numeric: tabular-nums; }
+.overlay-divider { display: none; }
 .overlay-track { height: 5px; }
 .overlay-footer { margin-top: 8px; color: var(--dim); font-size: 9px; }
+
+.overlay-minimal {
+  height: 48px;
+  padding: 0 10px;
+}
+.overlay-minimal .overlay-header,
+.overlay-minimal .overlay-track,
+.overlay-minimal .overlay-footer,
+.overlay-minimal .overlay-account span,
+.overlay-minimal .overlay-local span { display: none; }
+.overlay-minimal .overlay-content {
+  width: 100%;
+  margin: 0;
+  justify-content: center;
+  gap: 10px;
+}
+.overlay-minimal .overlay-account,
+.overlay-minimal .overlay-local { text-align: center; }
+.overlay-minimal .overlay-account strong,
+.overlay-minimal .overlay-local strong {
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: -.045em;
+}
+.overlay-minimal .overlay-local strong { color: var(--level); }
+.overlay-minimal .overlay-divider {
+  display: block;
+  color: var(--dim);
+  font-size: 14px;
+  line-height: 1;
+}

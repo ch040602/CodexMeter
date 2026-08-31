@@ -95,6 +95,15 @@ function renderOverlay(snapshot, settings) {
   const localWeekPct = localSharePercent(snapshot);
   const remaining = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
   const used = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
+  $('overlay').classList.toggle('overlay-minimal', settings.overlayMode === 'minimal');
+  if (settings.overlayMode === 'minimal') {
+    $('overlayAccount').textContent = remaining;
+    $('overlayLocal').textContent = localWeekPct ?? '—';
+    $('overlayAccount').title = 'Codex 계정 주간 잔여율';
+    $('overlayLocal').title = snapshot.localShareReason;
+    $('overlayTrack').hidden = true;
+    return;
+  }
   if (settings.overlayMode === 'local') {
     $('overlayAccount').textContent = localTodayPct ?? '—';
     $('overlayAccountMeta').textContent = '이 PC 비중 · 오늘';

@@ -9,7 +9,8 @@ import {
 import { normalizeGuardrail } from './usage';
 
 export function normalizeOverlayMode(value: unknown): OverlayMode {
-  return value === 'local' ? 'local' : 'account';
+  if (value === 'local' || value === 'minimal') return value;
+  return 'account';
 }
 
 export function normalizeOverlayOpacity(value: unknown): number {
