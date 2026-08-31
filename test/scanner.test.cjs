@@ -43,3 +43,23 @@ test('reuses unchanged files and reads only appended JSONL bytes', async t => {
   assert.equal(appended.local.requests, 2);
   assert.ok(appended.bytesRead > 0);
 });
+
+test('keeps tracking a live session whose filesystem mtime is stale', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-meter-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'session.jsonl');
+  const now = Date.parse('2026-08-31T12:00:00.000Z');
+  const resetAt = now + 3 * 24 * 60 * 60 * 1_000;
+  fs.writeFileSync(file, `${JSON.stringify({ type: 'session_meta', payload: { id: 'stale-session' } })}\n${row(now - 1_000, 10, resetAt, 100)}\n`);
+  const stale = new Date(now - 10 * 24 * 60 * 60 * 1_000);
+  fs.utimesSync(file, stale, stale);
+
+  const scanner = new LocalUsageScanner([root]);
+  const first = await scanner.scan(80, now);
+  assert.equal(first.local.tokens, 100);
+
+  fs.appendFileSync(file, row(now, 11, resetAt, 200) + '\n');
+  const appended = await scanner.scan(80, now);
+  assert.equal(appended.local.tokens, 300);
+  assert.equal(appended.local.requests, 2);
+});

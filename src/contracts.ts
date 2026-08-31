@@ -3,6 +3,7 @@ export type MeterStatus = 'ready' | 'waiting' | 'expired' | 'error';
 export type OverlayMode = 'account' | 'local' | 'minimal';
 export type AccountTodayBasis = 'reset' | 'observed' | 'unavailable';
 export type AccountQuotaBasis = 'inferred' | 'unavailable';
+export type AccountTokenBasis = 'current-window' | 'recent-estimate' | 'unavailable';
 
 export interface AccountUsageBucket {
   startDate: string;
@@ -46,6 +47,7 @@ export interface MeterSnapshot {
   localAccountUsageSharePct: number | null;
   localAccountUsageShareTodayPct: number | null;
   accountUsageShareReason: string;
+  accountTokenBasis: AccountTokenBasis;
   accountWindowTokens: number | null;
   accountWeeklyLimitTokens: number | null;
   localQuotaUsedPct: number | null;

@@ -1,6 +1,7 @@
 import type {
   AccountTokenUsage,
   AccountQuotaBasis,
+  AccountTokenBasis,
   AccountTodayBasis,
   LocalTotals,
   MeterLevel,
@@ -9,6 +10,7 @@ import type {
 } from './contracts';
 
 export const WEEK_MS = 7 * 24 * 60 * 60 * 1_000;
+const DAY_MS = 24 * 60 * 60 * 1_000;
 const DAILY_BASELINE_LOOKBACK_MS = 12 * 60 * 60 * 1_000;
 
 export interface TokenUsage {
@@ -158,6 +160,7 @@ function localDateKey(timestampMs: number): string {
 interface AccountWindowTokenTotals {
   weekly: number | null;
   today: number | null;
+  basis: AccountTokenBasis;
 }
 
 function accountWindowTokenTotals(
@@ -165,7 +168,7 @@ function accountWindowTokenTotals(
   windowStart: number,
   now: number,
 ): AccountWindowTokenTotals {
-  if (!accountUsage) return { weekly: null, today: null };
+  if (!accountUsage) return { weekly: null, today: null, basis: 'unavailable' };
   const firstDate = localDateKey(windowStart);
   const todayDate = localDateKey(now);
   let weekly = 0;
@@ -181,9 +184,33 @@ function accountWindowTokenTotals(
       today += bucket.tokens;
     }
   }
+  if (hasWeekly && weekly > 0) {
+    return {
+      weekly,
+      today: hasToday && today > 0 ? today : null,
+      basis: 'current-window',
+    };
+  }
+
+  // The local app-server may lag while the current calendar-day bucket is
+  // being materialized. Keep the percentages useful with a clearly marked
+  // recent estimate, never presenting it as the exact active window.
+  const recentFirstDate = localDateKey(startOfLocalDay(now) - 6 * DAY_MS);
+  let recent = 0;
+  for (const bucket of accountUsage.dailyUsageBuckets) {
+    if (bucket.startDate >= recentFirstDate && bucket.startDate <= todayDate) recent += bucket.tokens;
+  }
+  if (recent > 0) {
+    return {
+      weekly: recent,
+      today: hasToday && today > 0 ? today : null,
+      basis: 'recent-estimate',
+    };
+  }
   return {
-    weekly: hasWeekly ? weekly : null,
-    today: hasToday ? today : null,
+    weekly: null,
+    today: null,
+    basis: 'unavailable',
   };
 }
 
@@ -203,6 +230,24 @@ function ratioPercent(localTokens: number, accountTokens: number | null): number
   if (accountTokens === null || accountTokens <= 0) return null;
   const value = localTokens / accountTokens * 100;
   return Number.isFinite(value) ? Math.round(value * 10) / 10 : null;
+}
+
+function accountUsageShareReasonText(
+  totals: AccountWindowTokenTotals,
+  accountUsageAvailable: boolean,
+): string {
+  if (totals.basis === 'recent-estimate') {
+    return '현재 주간 계정 토큰 버킷이 아직 없어 최근 7일 계정 토큰 합계로 이번 주·오늘 이 PC 비중을 추정했습니다(≈). 현재 날짜 계정 버킷이 수신되면 정확한 분모로 갱신합니다.';
+  }
+  if (totals.weekly === null || totals.weekly <= 0) {
+    return accountUsageAvailable
+      ? '현재 주간 계정 토큰 버킷이 없거나 아직 0이라 계정 사용량 중 이 PC 비중을 계산할 수 없습니다.'
+      : 'Codex account/usage/read를 읽지 못해 계정 사용량 중 이 PC 비중을 계산할 수 없습니다.';
+  }
+  if (totals.today === null || totals.today <= 0) {
+    return '이번 주 비중은 현재 주간 계정 토큰으로 계산했습니다. 오늘 계정 토큰 버킷은 아직 없어 오늘 비중은 계산 대기입니다.';
+  }
+  return '계정 사용량 중 이 PC 비중 = 이 PC 토큰 ÷ 같은 주간 계정 토큰입니다.';
 }
 
 interface AccountTodayUsage {
@@ -246,6 +291,25 @@ function levelFor(usedPct: number | null, guardrailPct: number): MeterLevel {
   if (usedPct >= guardrailPct) return 'danger';
   if (usedPct >= Math.max(0, guardrailPct - 10)) return 'warning';
   return 'normal';
+}
+
+function accountQuotaReason(
+  accountUsedPct: number | null,
+  quotaBasis: AccountQuotaBasis,
+  tokenBasis: AccountTokenBasis,
+  accountUsageAvailable: boolean,
+): string {
+  if (quotaBasis === 'inferred' && tokenBasis === 'recent-estimate') {
+    return '현재 주간 계정 토큰 버킷이 아직 없어 최근 7일 계정 토큰 합계로 주간 한도를 추정했습니다(≈). Codex 로컬 상태가 절대 한도를 직접 제공하지 않아 추정값으로 표시합니다.';
+  }
+  if (quotaBasis === 'inferred') {
+    return '추정 주간 한도 = 현재 주간 계정 토큰 ÷ Codex 계정 사용률입니다. Codex 로컬 상태가 절대 한도를 직접 제공하지 않아 추정값으로 표시합니다.';
+  }
+  if (accountUsedPct === null) return 'Codex 계정 주간 사용률이 없어 주간 한도를 계산할 수 없습니다.';
+  if (accountUsedPct <= 0) return '계정 사용률이 0%라 토큰 수와 퍼센트로 주간 한도를 역산할 수 없습니다.';
+  return accountUsageAvailable
+    ? '현재 주간 계정 토큰 버킷이 없거나 아직 0이라 주간 한도를 계산할 수 없습니다.'
+    : 'Codex account/usage/read를 읽지 못해 주간 한도를 계산할 수 없습니다.';
 }
 
 export interface SnapshotDiagnostics {
@@ -297,28 +361,22 @@ export function buildSnapshot(
   const localToday = totals(values, Math.max(windowStart, startOfLocalDay(now)), now);
   const accountTokenTotals = accountWindowTokenTotals(diagnostics.accountTokenUsage, windowStart, now);
   const localAccountUsageSharePct = ratioPercent(local.tokens, accountTokenTotals.weekly);
-  const localAccountUsageShareTodayPct = ratioPercent(localToday.tokens, accountTokenTotals.today);
-  const accountUsageShareReason = accountTokenTotals.weekly === null || accountTokenTotals.weekly <= 0
-    ? diagnostics.accountTokenUsage
-      ? '현재 주간 계정 토큰 버킷이 없거나 아직 0이라 계정 사용량 중 이 PC 비중을 계산할 수 없습니다.'
-      : 'Codex account/usage/read를 읽지 못해 계정 사용량 중 이 PC 비중을 계산할 수 없습니다.'
-    : accountTokenTotals.today === null || accountTokenTotals.today <= 0
-      ? '이번 주 비중은 현재 주간 계정 토큰으로 계산했습니다. 오늘 계정 토큰 버킷은 아직 없어 오늘 비중은 계산 대기입니다.'
-      : '계정 사용량 중 이 PC 비중 = 이 PC 토큰 ÷ 같은 주간 계정 토큰입니다.';
+  const localAccountUsageShareTodayPct = ratioPercent(
+    localToday.tokens,
+    accountTokenTotals.today ?? (accountTokenTotals.basis === 'recent-estimate' ? accountTokenTotals.weekly : null),
+  );
+  const accountUsageShareReason = accountUsageShareReasonText(accountTokenTotals, diagnostics.accountTokenUsage !== null && diagnostics.accountTokenUsage !== undefined);
   const accountWindowTokens = accountTokenTotals.weekly;
   const accountWeeklyLimitTokens = inferWeeklyLimit(accountUsedPct, accountWindowTokens);
   const localQuotaUsedPct = quotaPercent(local.tokens, accountWeeklyLimitTokens);
   const localQuotaUsedTodayPct = quotaPercent(localToday.tokens, accountWeeklyLimitTokens);
   const accountQuotaBasis: AccountQuotaBasis = accountWeeklyLimitTokens === null ? 'unavailable' : 'inferred';
-  const accountQuotaReason = accountQuotaBasis === 'inferred'
-    ? '추정 주간 한도 = 현재 주간 계정 토큰 ÷ Codex 계정 사용률입니다. Codex 로컬 상태가 절대 한도를 직접 제공하지 않아 추정값으로 표시합니다.'
-    : accountUsedPct === null
-      ? 'Codex 계정 주간 사용률이 없어 주간 한도를 계산할 수 없습니다.'
-      : accountUsedPct <= 0
-        ? '계정 사용률이 0%라 토큰 수와 퍼센트로 주간 한도를 역산할 수 없습니다.'
-        : diagnostics.accountTokenUsage
-          ? '현재 주간 계정 토큰 버킷이 없거나 아직 0이라 주간 한도를 계산할 수 없습니다.'
-          : 'Codex account/usage/read를 읽지 못해 주간 한도를 계산할 수 없습니다.';
+  const accountQuotaReasonValue = accountQuotaReason(
+    accountUsedPct,
+    accountQuotaBasis,
+    accountTokenTotals.basis,
+    diagnostics.accountTokenUsage !== null && diagnostics.accountTokenUsage !== undefined,
+  );
 
   return {
     generatedAt: now,
@@ -340,12 +398,13 @@ export function buildSnapshot(
     localAccountUsageSharePct,
     localAccountUsageShareTodayPct,
     accountUsageShareReason,
+    accountTokenBasis: accountTokenTotals.basis,
     accountWindowTokens,
     accountWeeklyLimitTokens,
     localQuotaUsedPct,
     localQuotaUsedTodayPct,
     accountQuotaBasis,
-    accountQuotaReason,
+    accountQuotaReason: accountQuotaReasonValue,
     guardrailPct,
     guardrailExceeded: level === 'danger',
     level,

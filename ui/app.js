@@ -60,6 +60,12 @@ function tokenSummary(value) {
   return value === null ? '계산 대기' : `${compactNumber(value)} tokens`;
 }
 
+function accountTokenLabel(snapshot) {
+  return snapshot.accountTokenBasis === 'recent-estimate'
+    ? '최근 7일 계정 토큰 추정'
+    : '계정 토큰 이번 주';
+}
+
 function renderDashboard(snapshot, settings) {
   const remaining = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
   document.title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${compactNumber(snapshot.local.tokens)}`;
@@ -71,7 +77,7 @@ function renderDashboard(snapshot, settings) {
       ? '자정 직전 로컬 관측값을 기준으로 계산한 근사값입니다.'
       : '오늘 시작 기준값이 없어 아직 계산할 수 없습니다.';
   $('accountRemaining').textContent = remaining;
-  $('accountQuota').textContent = `계정 토큰 이번 주 ${tokenSummary(snapshot.accountWindowTokens)} · 추정 주간 절대 한도 ${tokenSummary(snapshot.accountWeeklyLimitTokens)}`;
+  $('accountQuota').textContent = `${accountTokenLabel(snapshot)} ${tokenSummary(snapshot.accountWindowTokens)} · 추정 주간 절대 한도 ${tokenSummary(snapshot.accountWeeklyLimitTokens)}`;
   $('accountQuota').title = snapshot.accountQuotaReason;
   const accountSource = snapshot.source === 'codex-local-status' ? '로컬 상태' : '세션 기록';
   $('plan').textContent = snapshot.planName ? `Codex ${snapshot.planName} · ${accountSource}` : snapshot.statusDetail;

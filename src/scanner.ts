@@ -12,6 +12,7 @@ import {
 } from './usage';
 
 const TAIL_PROBE_BYTES = 2 * 1024 * 1024;
+const STALE_TAIL_PROBE_BYTES = 64 * 1024;
 
 interface FileCache {
   size: number;
@@ -26,6 +27,7 @@ interface DiscoveredFile {
   filePath: string;
   mtimeMs: number;
   size: number;
+  isRecent: boolean;
 }
 
 interface ProbeCache {
@@ -54,7 +56,15 @@ async function discoverJsonlFiles(roots: readonly string[], cutoffMs: number): P
       else if (entry.isFile() && entry.name.endsWith('.jsonl')) {
         try {
           const info = await stat(fullPath);
-          if (info.mtimeMs >= cutoffMs) files.push({ filePath: fullPath, mtimeMs: info.mtimeMs, size: info.size });
+          // Codex can keep appending to a session without updating its filesystem
+          // mtime. Keep every JSONL candidate so an active session is never lost;
+          // the probe/cache layers below avoid rereading unchanged history.
+          files.push({
+            filePath: fullPath,
+            mtimeMs: info.mtimeMs,
+            size: info.size,
+            isRecent: info.mtimeMs >= cutoffMs,
+          });
         } catch {
           // Codex may rotate a file between directory listing and stat.
         }
@@ -80,8 +90,12 @@ function newestRecord(lines: readonly string[], filePath: string): LocalUsageRec
   return newest;
 }
 
-async function probeFile(file: DiscoveredFile, allowFullFallback: boolean): Promise<{ latest: LocalUsageRecord | null; bytesRead: number }> {
-  const lengths = [Math.min(file.size, TAIL_PROBE_BYTES)];
+async function probeFile(
+  file: DiscoveredFile,
+  allowFullFallback: boolean,
+  tailBytes: number,
+): Promise<{ latest: LocalUsageRecord | null; bytesRead: number }> {
+  const lengths = [Math.min(file.size, tailBytes)];
   if (allowFullFallback && file.size > TAIL_PROBE_BYTES) lengths.push(file.size);
   let bytesRead = 0;
   for (const length of lengths) {
@@ -169,7 +183,8 @@ export class LocalUsageScanner {
       const current = this.probeCache.get(file.filePath);
       if (current && current.size === file.size && current.mtimeMs === file.mtimeMs) continue;
       try {
-        const result = await probeFile(file, index < 4);
+        const deepProbe = file.isRecent || this.fileCache.has(file.filePath) || index < 4;
+        const result = await probeFile(file, deepProbe, deepProbe ? TAIL_PROBE_BYTES : STALE_TAIL_PROBE_BYTES);
         bytesRead += result.bytesRead;
         this.probeCache.set(file.filePath, { size: file.size, mtimeMs: file.mtimeMs, latest: result.latest });
       } catch {

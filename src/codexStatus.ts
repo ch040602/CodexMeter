@@ -8,7 +8,7 @@ import type { AccountRateLimit } from './usage';
 const WEEK_MINUTES = 10_080;
 const INITIALIZE_TIMEOUT_MS = 5_000;
 const STATUS_TIMEOUT_MS = 8_000;
-const TOKEN_USAGE_CACHE_MS = 60_000;
+const TOKEN_USAGE_CACHE_MS = 15_000;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -138,13 +138,15 @@ export class CodexStatusClient {
     try {
       await this.ensureStarted();
       const result = await this.request('account/usage/read', undefined, STATUS_TIMEOUT_MS);
-      const value = parseCodexTokenUsage(result);
+      const parsed = parseCodexTokenUsage(result);
+      const value = parsed ?? this.tokenUsageCache?.value ?? null;
       this.tokenUsageCache = { observedAt: Date.now(), value };
       return value;
     } catch {
       // Older Codex builds may reject this optional method; keep the rate-limit channel alive.
-      this.tokenUsageCache = { observedAt: Date.now(), value: null };
-      return null;
+      const value = this.tokenUsageCache?.value ?? null;
+      this.tokenUsageCache = { observedAt: Date.now(), value };
+      return value;
     }
   }
 

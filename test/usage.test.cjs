@@ -162,6 +162,7 @@ test('infers the weekly token limit and this-PC plan percentage from matching cu
   });
 
   assert.equal(snapshot.accountWindowTokens, 10_000);
+  assert.equal(snapshot.accountTokenBasis, 'current-window');
   assert.equal(snapshot.accountWeeklyLimitTokens, 50_000);
   assert.equal(snapshot.localQuotaUsedPct, 4);
   assert.equal(snapshot.localQuotaUsedTodayPct, 4);
@@ -189,23 +190,52 @@ test('calculates this-PC share of account usage separately from plan quota usage
   assert.equal(snapshot.localQuotaUsedTodayPct, 4);
 });
 
-test('does not infer a plan limit from a stale token window', () => {
+test('does not infer a plan limit without recent account token data', () => {
   const now = new Date(2026, 7, 31, 16, 0, 0, 0).getTime();
   const resetAt = new Date(2026, 8, 7, 16, 0, 0, 0).getTime();
   const current = parseLocalUsageLine(line(now, 20, resetAt, 2_000), 'current');
   const snapshot = buildSnapshot([current], 80, now, {
     accountRateLimit: { usedPct: 20, resetAt, planName: 'pro', observedAt: now },
     accountTokenUsage: {
-      dailyUsageBuckets: [{ startDate: '2026-08-30', tokens: 10_000 }],
+      dailyUsageBuckets: [{ startDate: '2026-08-20', tokens: 10_000 }],
     },
   });
 
   assert.equal(snapshot.accountWindowTokens, null);
+  assert.equal(snapshot.accountTokenBasis, 'unavailable');
   assert.equal(snapshot.accountWeeklyLimitTokens, null);
   assert.equal(snapshot.localAccountUsageSharePct, null);
   assert.equal(snapshot.localAccountUsageShareTodayPct, null);
   assert.equal(snapshot.localQuotaUsedPct, null);
   assert.equal(snapshot.accountQuotaBasis, 'unavailable');
+});
+
+test('keeps local percentage values available while the current account day bucket is pending', () => {
+  const now = new Date(2026, 7, 31, 18, 0, 0, 0).getTime();
+  const resetAt = new Date(2026, 8, 7, 16, 0, 0, 0).getTime();
+  const current = parseLocalUsageLine(
+    line(new Date(2026, 7, 31, 17, 0, 0, 0).getTime(), 20, resetAt, 2_000),
+    'current',
+  );
+
+  const snapshot = buildSnapshot([current], 80, now, {
+    accountRateLimit: { usedPct: 20, resetAt, planName: 'pro', observedAt: now },
+    accountTokenUsage: {
+      dailyUsageBuckets: [
+        { startDate: '2026-08-25', tokens: 10_000 },
+        { startDate: '2026-08-30', tokens: 5_000 },
+      ],
+    },
+  });
+
+  assert.equal(snapshot.accountTokenBasis, 'recent-estimate');
+  assert.equal(snapshot.accountWindowTokens, 15_000);
+  assert.equal(snapshot.accountWeeklyLimitTokens, 75_000);
+  assert.equal(snapshot.localAccountUsageSharePct, 13.3);
+  assert.equal(snapshot.localQuotaUsedPct, 2.67);
+  assert.equal(snapshot.localAccountUsageShareTodayPct, 13.3);
+  assert.match(snapshot.accountUsageShareReason, /추정/);
+  assert.match(snapshot.accountQuotaReason, /추정/);
 });
 
 test('does not infer a plan limit from a zero rate-limit percentage', () => {
