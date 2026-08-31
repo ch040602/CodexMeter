@@ -22,6 +22,7 @@
           <div>
             <p id="accountTitle" class="label">Codex 계정 · 주간 잔여율</p>
             <p id="plan" class="meta">로컬 세션 확인 중</p>
+            <p id="accountQuota" class="meta">주간 토큰 한도 계산 대기</p>
           </div>
           <p id="freshness" class="freshness">—</p>
         </div>
@@ -69,15 +70,15 @@
             <span>요청</span>
           </div>
           <div>
-            <strong id="localShareToday">—</strong>
-            <span>이 PC 비중 · 오늘</span>
+            <strong id="localQuotaToday">—</strong>
+            <span>이 PC 요금제 추정 · 오늘</span>
           </div>
           <div>
-            <strong id="localShareWeek">—</strong>
-            <span>이 PC 비중 · 이번 주</span>
+            <strong id="localQuotaWeek">—</strong>
+            <span>이 PC 요금제 추정 · 이번 주</span>
           </div>
         </div>
-        <p id="shareNote" class="truth-note"></p>
+        <p id="quotaNote" class="truth-note"></p>
       </section>
 
       <section class="controls" aria-labelledby="guardrailTitle">
@@ -93,7 +94,7 @@
         <div class="setting-row">
           <div>
             <p class="label">오버레이 표시</p>
-            <p class="meta">오버레이는 계정 잔여율과 이 PC의 계정 토큰 비중을 퍼센트로 표시합니다.</p>
+            <p class="meta">오버레이는 계정 잔여율과 이 PC의 요금제 기준 추정 사용률을 퍼센트로 표시합니다.</p>
           </div>
           <select id="overlayMode" aria-label="오버레이 표시 항목">
             <option value="account">계정 + 이 PC</option>
@@ -135,7 +136,7 @@
         <span class="overlay-divider" aria-hidden="true">·</span>
         <div class="overlay-local">
           <strong id="overlayLocal">—</strong>
-          <span id="overlayLocalMeta">이 PC 비중 · 이번 주</span>
+          <span id="overlayLocalMeta">이 PC 요금제 추정 · 이번 주</span>
         </div>
       </div>
       <div id="overlayTrack" class="overlay-track"><div id="overlayFill"></div><div id="overlayMarker"></div></div>

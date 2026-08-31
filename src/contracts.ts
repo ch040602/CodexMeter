@@ -2,7 +2,7 @@ export type MeterLevel = 'normal' | 'warning' | 'danger' | 'unknown';
 export type MeterStatus = 'ready' | 'waiting' | 'expired' | 'error';
 export type OverlayMode = 'account' | 'local' | 'minimal';
 export type AccountTodayBasis = 'reset' | 'observed' | 'unavailable';
-export type LocalShareBasis = 'account-token-usage' | 'recent-account-token-usage' | 'unavailable';
+export type AccountQuotaBasis = 'inferred' | 'unavailable';
 
 export interface AccountUsageBucket {
   startDate: string;
@@ -43,10 +43,12 @@ export interface MeterSnapshot {
   exactWindow: boolean;
   local: LocalTotals;
   localToday: LocalTotals;
-  localAccountSharePct: number | null;
-  localAccountShareTodayPct: number | null;
-  localShareBasis: LocalShareBasis;
-  localShareReason: string;
+  accountWindowTokens: number | null;
+  accountWeeklyLimitTokens: number | null;
+  localQuotaUsedPct: number | null;
+  localQuotaUsedTodayPct: number | null;
+  accountQuotaBasis: AccountQuotaBasis;
+  accountQuotaReason: string;
   guardrailPct: number;
   guardrailExceeded: boolean;
   level: MeterLevel;

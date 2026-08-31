@@ -53,11 +53,14 @@ function percent(value: number | null): string {
   return value === null ? '—' : `${Math.round(value)}%`;
 }
 
-function sharePercent(value: number | null, approximate = false): string {
-  if (value === null) return '—';
-  const prefix = approximate ? '약 ' : '';
-  if (value > 0 && value < 0.1) return `${prefix}<0.1%`;
-  return `${prefix}${Number.isInteger(value) ? value : value.toFixed(1)}%`;
+function quotaPercent(value: number | null): string {
+  if (value === null) return '계산 대기';
+  if (value > 0 && value < 0.1) return '≈<0.1%';
+  return `≈${Number.isInteger(value) ? value : value.toFixed(value < 1 ? 2 : 1)}%`;
+}
+
+function tokenSummary(value: number | null): string {
+  return value === null ? '계산 대기' : `${compactTokens(value)} tokens`;
 }
 
 function todayPercent(snapshotValue: MeterSnapshot): string {
@@ -273,7 +276,8 @@ function trayTooltip(): string {
     'Codex Meter',
     `계정 이번 주 (${accountSource}): 남음 ${percent(snapshot.accountRemainingPct)} · 사용 ${percent(snapshot.accountUsedPct)}`,
     `계정 총량 중 오늘: ${todayPercent(snapshot)}`,
-    `이 PC 계정 토큰 비중: 오늘 ${sharePercent(snapshot.localAccountShareTodayPct, snapshot.localShareBasis === 'recent-account-token-usage')} · 이번 주 ${sharePercent(snapshot.localAccountSharePct, snapshot.localShareBasis === 'recent-account-token-usage')}`,
+    `계정 토큰 이번 주: ${tokenSummary(snapshot.accountWindowTokens)} · 추정 주간 절대 한도 ${tokenSummary(snapshot.accountWeeklyLimitTokens)}`,
+    `이 PC 요금제 추정 사용: 오늘 ${quotaPercent(snapshot.localQuotaUsedTodayPct)} · 이번 주 ${quotaPercent(snapshot.localQuotaUsedPct)}`,
     `이 PC 오늘: ${compactTokens(snapshot.localToday.tokens)} tokens · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`,
     `이 PC 이번 주: ${compactTokens(snapshot.local.tokens)} tokens · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`,
     `경고선: 계정 사용 ${settings.guardrailPct}%`,
@@ -297,7 +301,11 @@ function rebuildTray(): void {
     { label: `계정 남음 ${remaining} · 사용 ${used}`, click: () => dashboard?.show() },
     { label: `계정 총량 중 오늘 ${todayPercent(snapshot)}`, click: () => dashboard?.show() },
     {
-      label: `이 PC 계정 토큰 비중 · 오늘 ${sharePercent(snapshot.localAccountShareTodayPct, snapshot.localShareBasis === 'recent-account-token-usage')} · 이번 주 ${sharePercent(snapshot.localAccountSharePct, snapshot.localShareBasis === 'recent-account-token-usage')}`,
+      label: `계정 토큰 이번 주 ${tokenSummary(snapshot.accountWindowTokens)} · 추정 주간 절대 한도 ${tokenSummary(snapshot.accountWeeklyLimitTokens)}`,
+      click: () => dashboard?.show(),
+    },
+    {
+      label: `이 PC 요금제 추정 사용 · 오늘 ${quotaPercent(snapshot.localQuotaUsedTodayPct)} · 이번 주 ${quotaPercent(snapshot.localQuotaUsedPct)}`,
       click: () => dashboard?.show(),
     },
     {
