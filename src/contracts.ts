@@ -55,6 +55,7 @@ export interface MeterSnapshot {
   accountQuotaBasis: AccountQuotaBasis;
   accountQuotaReason: string;
   guardrailPct: number;
+  /** Warning state derived from this PC's inferred plan usage, not accountUsedPct. */
   guardrailExceeded: boolean;
   level: MeterLevel;
   filesIndexed: number;

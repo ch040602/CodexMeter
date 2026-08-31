@@ -55,6 +55,7 @@ h1 { margin: 0; font-size: 24px; line-height: 1.1; letter-spacing: -.035em; }
 .used-secondary strong { font-size: 21px; font-variant-numeric: tabular-nums; }
 .used-secondary span { color: var(--muted); font-size: 10px; }
 .track, .overlay-track { position: relative; height: 7px; overflow: visible; background: #292e33; }
+.local-track { margin-top: 14px; }
 .fill, .overlay-track > div:first-child { width: 0; height: 100%; background: var(--level); transition: width .25s ease; }
 .marker, .overlay-track > div:last-child { position: absolute; top: -3px; width: 1px; height: 13px; background: #d9dde0; opacity: .8; }
 .track-caption { display: flex; justify-content: space-between; margin-top: 8px; color: var(--dim); font-size: 10px; }

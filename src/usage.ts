@@ -355,7 +355,6 @@ export function buildSnapshot(
       : expired
         ? '마지막 주간 사용률이 만료되었습니다. 다음 Codex 작업 후 갱신됩니다.'
         : '주간 rate_limits가 포함된 로컬 Codex 세션을 기다리는 중입니다.';
-  const level = levelFor(accountUsedPct, guardrailPct);
   const todayAccount = accountTodayUsage(values, active ? account : null, windowStart, now);
   const local = totals(values, windowStart, now);
   const localToday = totals(values, Math.max(windowStart, startOfLocalDay(now)), now);
@@ -371,6 +370,7 @@ export function buildSnapshot(
   const localQuotaUsedPct = quotaPercent(local.tokens, accountWeeklyLimitTokens);
   const localQuotaUsedTodayPct = quotaPercent(localToday.tokens, accountWeeklyLimitTokens);
   const accountQuotaBasis: AccountQuotaBasis = accountWeeklyLimitTokens === null ? 'unavailable' : 'inferred';
+  const level = levelFor(localQuotaUsedPct, guardrailPct);
   const accountQuotaReasonValue = accountQuotaReason(
     accountUsedPct,
     accountQuotaBasis,

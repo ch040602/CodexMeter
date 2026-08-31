@@ -44,11 +44,10 @@
         </div>
         <div class="track" aria-label="계정 주간 사용률">
           <div id="accountFill" class="fill"></div>
-          <div id="guardrailMarker" class="marker"></div>
         </div>
         <div class="track-caption">
           <span id="resetAt">초기화 시각 대기</span>
-          <span id="guardrailCaption">경고 80%</span>
+          <span>계정 사용률</span>
         </div>
       </section>
 
@@ -86,13 +85,21 @@
             <span>이 PC 요금제 추정 · 오늘</span>
           </div>
         </div>
+        <div class="track local-track" aria-label="이 PC 요금제 추정 주간 사용률">
+          <div id="localQuotaFill" class="fill"></div>
+          <div id="localQuotaMarker" class="marker"></div>
+        </div>
+        <div class="track-caption">
+          <span>이 PC 요금제 추정 사용률</span>
+          <span id="localGuardrailCaption">경고 80%</span>
+        </div>
         <p id="quotaNote" class="truth-note"></p>
       </section>
 
       <section class="controls" aria-labelledby="guardrailTitle">
         <div>
-          <p id="guardrailTitle" class="label">계정 주간 경고선</p>
-          <p class="meta">이 PC에서 작업 중 계정 전체 사용률이 도달하면 경고합니다.</p>
+          <p id="guardrailTitle" class="label">이 PC 요금제 주간 경고선</p>
+          <p class="meta">이 PC의 추정 요금제 사용률이 도달하면 오버레이와 트레이 아이콘으로 경고합니다.</p>
         </div>
         <div class="range-row">
           <input id="guardrailRange" type="range" min="1" max="100" step="1">

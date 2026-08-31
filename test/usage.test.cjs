@@ -43,6 +43,37 @@ test('keeps account percentage and this-PC tokens as separate measurements', () 
   assert.equal(snapshot.accountUsedPct, 61);
   assert.equal(snapshot.accountRemainingPct, 39);
   assert.equal(snapshot.local.tokens, 500);
+  assert.equal(snapshot.localQuotaUsedPct, null);
+  assert.equal(snapshot.guardrailExceeded, false);
+  assert.equal(snapshot.level, 'unknown');
+});
+
+test('does not trigger the warning from account usage when the PC estimate is below the guardrail', () => {
+  const now = new Date(2026, 7, 31, 18, 0, 0, 0).getTime();
+  const resetAt = new Date(2026, 8, 7, 16, 0, 0, 0).getTime();
+  const current = parseLocalUsageLine(line(now, 90, resetAt, 4_000), 'current');
+  const snapshot = buildSnapshot([current], 80, now, {
+    accountRateLimit: { usedPct: 90, resetAt, planName: 'pro', observedAt: now },
+    accountTokenUsage: { dailyUsageBuckets: [{ startDate: '2026-08-31', tokens: 100_000 }] },
+  });
+
+  assert.equal(snapshot.accountUsedPct, 90);
+  assert.equal(snapshot.localQuotaUsedPct, 3.6);
+  assert.equal(snapshot.guardrailExceeded, false);
+  assert.equal(snapshot.level, 'normal');
+});
+
+test('triggers the warning from the PC plan estimate when it crosses the guardrail', () => {
+  const now = new Date(2026, 7, 31, 18, 0, 0, 0).getTime();
+  const resetAt = new Date(2026, 8, 7, 16, 0, 0, 0).getTime();
+  const current = parseLocalUsageLine(line(now, 20, resetAt, 420_000), 'current');
+  const snapshot = buildSnapshot([current], 80, now, {
+    accountRateLimit: { usedPct: 20, resetAt, planName: 'pro', observedAt: now },
+    accountTokenUsage: { dailyUsageBuckets: [{ startDate: '2026-08-31', tokens: 100_000 }] },
+  });
+
+  assert.equal(snapshot.accountUsedPct, 20);
+  assert.equal(snapshot.localQuotaUsedPct, 84);
   assert.equal(snapshot.guardrailExceeded, true);
   assert.equal(snapshot.level, 'danger');
 });

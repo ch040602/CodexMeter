@@ -287,7 +287,7 @@ function trayTooltip(): string {
     `이 PC 요금제 추정 사용: 오늘 ${quotaPercent(snapshot.localQuotaUsedTodayPct)} · 이번 주 ${quotaPercent(snapshot.localQuotaUsedPct)}`,
     `이 PC 오늘: ${compactTokens(snapshot.localToday.tokens)} tokens · ${snapshot.localToday.requests.toLocaleString('ko-KR')} requests`,
     `이 PC 이번 주: ${compactTokens(snapshot.local.tokens)} tokens · ${snapshot.local.requests.toLocaleString('ko-KR')} requests`,
-    `경고선: 계정 사용 ${settings.guardrailPct}%`,
+    `경고선: 이 PC 요금제 추정 사용 ${settings.guardrailPct}%`,
   ].join('\n');
 }
 
@@ -297,12 +297,14 @@ function rebuildTray(): void {
   const remaining = percent(snapshot.accountRemainingPct);
   const used = percent(snapshot.accountUsedPct);
   const local = compactTokens(snapshot.local.tokens);
-  const title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${local}`;
+  const title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${quotaPercent(snapshot.localQuotaUsedPct)}`;
   tray.setImage(statusIcon);
   tray.setToolTip(trayTooltip());
   if (dashboard && !dashboard.isDestroyed()) {
     dashboard.setTitle(title);
-    if (process.platform === 'win32') dashboard.setOverlayIcon(statusIcon, `Codex 계정 ${remaining} 남음`);
+    if (process.platform === 'win32') {
+      dashboard.setOverlayIcon(statusIcon, `Codex 계정 ${remaining} 남음 · 이 PC ${quotaPercent(snapshot.localQuotaUsedPct)}`);
+    }
   }
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: `계정 남음 ${remaining} · 사용 ${used}`, click: () => dashboard?.show() },
@@ -346,8 +348,8 @@ function notifyIfNeeded(): void {
   lastNotifiedReset = snapshot.resetAt;
   if (Notification.isSupported()) {
     new Notification({
-      title: 'Codex 주간 경고선 도달',
-      body: `계정 사용 ${percent(snapshot.accountUsedPct)} · 남음 ${percent(snapshot.accountRemainingPct)} · 경고선 ${settings.guardrailPct}%`,
+      title: 'Codex 이 PC 요금제 경고선 도달',
+      body: `이 PC 요금제 추정 사용 ${quotaPercent(snapshot.localQuotaUsedPct)} · 계정 ${percent(snapshot.accountUsedPct)} 사용 · ${percent(snapshot.accountRemainingPct)} 남음 · 경고선 ${settings.guardrailPct}%`,
       silent: false,
     }).show();
   }

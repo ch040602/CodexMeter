@@ -59,6 +59,7 @@ test('keeps tracking a live session whose filesystem mtime is stale', async t =>
   assert.equal(first.local.tokens, 100);
 
   fs.appendFileSync(file, row(now, 11, resetAt, 200) + '\n');
+  fs.utimesSync(file, stale, stale);
   const appended = await scanner.scan(80, now);
   assert.equal(appended.local.tokens, 300);
   assert.equal(appended.local.requests, 2);

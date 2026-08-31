@@ -32,7 +32,7 @@ function ago(value) {
 
 function setProgress(fill, marker, used, guardrail) {
   fill.style.width = `${Math.max(0, Math.min(100, used ?? 0))}%`;
-  marker.style.left = `${Math.max(1, Math.min(99, guardrail))}%`;
+  if (marker) marker.style.left = `${Math.max(1, Math.min(99, guardrail))}%`;
 }
 
 function todayPercent(snapshot) {
@@ -68,7 +68,7 @@ function accountTokenLabel(snapshot) {
 
 function renderDashboard(snapshot, settings) {
   const remaining = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
-  document.title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${compactNumber(snapshot.local.tokens)}`;
+  document.title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${localQuotaPercent(snapshot) ?? '측정 중'}`;
   $('accountUsed').textContent = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
   $('accountTodayUsed').textContent = todayPercent(snapshot) ?? '—';
   $('accountTodayUsed').title = snapshot.accountTodayBasis === 'reset'
@@ -83,14 +83,15 @@ function renderDashboard(snapshot, settings) {
   $('plan').textContent = snapshot.planName ? `Codex ${snapshot.planName} · ${accountSource}` : snapshot.statusDetail;
   $('freshness').textContent = ago(snapshot.accountObservedAt);
   $('resetAt').textContent = dateTime(snapshot.resetAt);
-  $('guardrailCaption').textContent = `경고 ${settings.guardrailPct}%`;
-  setProgress($('accountFill'), $('guardrailMarker'), snapshot.accountUsedPct, settings.guardrailPct);
+  setProgress($('accountFill'), null, snapshot.accountUsedPct, settings.guardrailPct);
   $('localTokens').textContent = compactNumber(snapshot.local.tokens);
   $('localRequests').textContent = snapshot.local.requests.toLocaleString('ko-KR');
   $('localAccountUsageShareWeek').textContent = accountUsageSharePercent(snapshot) ?? '계산 대기';
   $('localAccountUsageShareToday').textContent = accountUsageSharePercent(snapshot, true) ?? '계산 대기';
   $('localQuotaToday').textContent = localQuotaPercent(snapshot, true) ?? '—';
   $('localQuotaWeek').textContent = localQuotaPercent(snapshot) ?? '—';
+  $('localGuardrailCaption').textContent = `경고 ${settings.guardrailPct}%`;
+  setProgress($('localQuotaFill'), $('localQuotaMarker'), snapshot.localQuotaUsedPct, settings.guardrailPct);
   $('localAccountUsageShareWeek').title = snapshot.accountUsageShareReason;
   $('localAccountUsageShareToday').title = snapshot.accountUsageShareReason;
   $('localQuotaToday').title = snapshot.accountQuotaReason;
@@ -118,7 +119,7 @@ function renderOverlay(snapshot, settings) {
   const accountShareTodayPct = accountUsageSharePercent(snapshot, true);
   const accountShareWeekPct = accountUsageSharePercent(snapshot);
   const remaining = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
-  const used = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
+  const used = localWeekPct ?? '측정 중';
   $('overlay').classList.toggle('overlay-minimal', settings.overlayMode === 'minimal');
   if (settings.overlayMode === 'minimal') {
     $('overlayAccount').textContent = remaining;
@@ -149,10 +150,10 @@ function renderOverlay(snapshot, settings) {
   $('overlayLocal').title = `${snapshot.accountQuotaReason} ${snapshot.accountUsageShareReason}`;
   $('overlayTrack').hidden = false;
   $('overlayStatus').textContent = snapshot.guardrailExceeded
-    ? `사용 ${used} · 경고선 도달`
-    : `사용 ${used} · ${shortReset(snapshot.resetAt)}`;
+    ? `이 PC ${used} · 경고선 도달`
+    : `이 PC ${used} · ${shortReset(snapshot.resetAt)}`;
   $('overlayGuardrail').textContent = `이 PC 요금제 오늘 ${localTodayPct ?? '측정 중'} · 계정 비중 이번 주 ${accountShareWeekPct ?? '측정 중'} · 경고 ${settings.guardrailPct}%`;
-  setProgress($('overlayFill'), $('overlayMarker'), snapshot.accountUsedPct, settings.guardrailPct);
+  setProgress($('overlayFill'), $('overlayMarker'), snapshot.localQuotaUsedPct, settings.guardrailPct);
 }
 
 function render(snapshot, settings) {
