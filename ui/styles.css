@@ -127,8 +127,10 @@ footer { margin-top: 14px; color: var(--dim); font-size: 9.5px; }
 .overlay-minimal .overlay-account span,
 .overlay-minimal .overlay-local span { display: none; }
 .overlay-minimal .overlay-content {
+  height: 100%;
   width: 100%;
   margin: 0;
+  align-items: center;
   justify-content: center;
   gap: 10px;
 }
