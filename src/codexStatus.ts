@@ -73,42 +73,82 @@ export function parseCodexTokenUsage(value: unknown): AccountTokenUsage | null {
   return dailyUsageBuckets.length > 0 ? { dailyUsageBuckets } : null;
 }
 
-function installedCodexBinary(): string | null {
-  if (process.platform !== 'win32' || !process.env.APPDATA) return null;
-  const target = process.arch === 'arm64' ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-msvc';
-  const packageName = process.arch === 'arm64' ? 'codex-win32-arm64' : 'codex-win32-x64';
-  const candidates = [
-    path.join(
-      process.env.APPDATA,
-      'npm',
-      'node_modules',
-      '@openai',
-      'codex',
-      'node_modules',
-      '@openai',
-      packageName,
-      'vendor',
-      target,
-      'bin',
-      'codex.exe',
-    ),
-    path.join(
-      process.env.APPDATA,
-      'npm',
-      'node_modules',
-      '@openai',
-      'codex',
-      'vendor',
-      target,
-      'bin',
-      'codex.exe',
-    ),
+interface CodexTarget {
+  packageName: string;
+  triple: string;
+}
+
+function codexTarget(architecture: string): CodexTarget | null {
+  if (architecture === 'arm64') return { packageName: 'codex-win32-arm64', triple: 'aarch64-pc-windows-msvc' };
+  if (architecture === 'x64') return { packageName: 'codex-win32-x64', triple: 'x86_64-pc-windows-msvc' };
+  return null;
+}
+
+function codexPackageBinaries(root: string, target: CodexTarget): string[] {
+  return [
+    path.join(root, 'node_modules', '@openai', target.packageName, 'vendor', target.triple, 'bin', 'codex.exe'),
+    path.join(root, 'vendor', target.triple, 'bin', 'codex.exe'),
   ];
-  return candidates.find(candidate => existsSync(candidate)) ?? null;
+}
+
+export function findCodexBinary(
+  env: NodeJS.ProcessEnv = process.env,
+  platformName = process.platform,
+  architecture = process.arch,
+): string | null {
+  if (platformName !== 'win32') return null;
+  const target = codexTarget(architecture);
+  if (!target) return null;
+
+  const packageRoots: string[] = [];
+  const pathBinaries: string[] = [];
+  const addPackageRoot = (value: string | undefined): void => {
+    if (!value?.trim()) return;
+    const root = path.resolve(value);
+    if (!packageRoots.includes(root)) packageRoots.push(root);
+  };
+  const addNearbyPackageRoots = (startDirectory: string): void => {
+    let current = path.resolve(startDirectory);
+    for (let depth = 0; depth < 8; depth += 1) {
+      addPackageRoot(path.join(current, 'node_modules', '@openai', 'codex'));
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  };
+
+  addPackageRoot(env.CODEX_MANAGED_PACKAGE_ROOT);
+  const pathValue = env.Path ?? env.PATH ?? '';
+  for (const entry of pathValue.split(path.delimiter)) {
+    const directory = entry.trim();
+    if (!directory) continue;
+    const directBinary = path.join(directory, 'codex.exe');
+    if (existsSync(directBinary)) pathBinaries.push(directBinary);
+    if (['codex.cmd', 'codex.ps1', 'codex'].some(name => existsSync(path.join(directory, name)))) {
+      addNearbyPackageRoots(directory);
+    }
+  }
+
+  const addGlobalPrefix = (prefix: string | undefined): void => {
+    if (prefix) addPackageRoot(path.join(prefix, 'node_modules', '@openai', 'codex'));
+  };
+  addGlobalPrefix(env.npm_config_prefix);
+  addGlobalPrefix(env.NPM_CONFIG_PREFIX);
+  addGlobalPrefix(env.APPDATA ? path.join(env.APPDATA, 'npm') : undefined);
+  addGlobalPrefix(env.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, 'npm') : undefined);
+  if (env.USERPROFILE) {
+    addPackageRoot(path.join(env.USERPROFILE, '.bun', 'install', 'global', 'node_modules', '@openai', 'codex'));
+  }
+
+  for (const root of packageRoots) {
+    const binary = codexPackageBinaries(root, target).find(candidate => existsSync(candidate));
+    if (binary) return binary;
+  }
+  return pathBinaries.find(candidate => existsSync(candidate)) ?? null;
 }
 
 export class CodexStatusClient {
-  private readonly binaryPath = installedCodexBinary();
+  private readonly binaryPath = findCodexBinary();
   private child: ChildProcessWithoutNullStreams | null = null;
   private lines: Interface | null = null;
   private ready: Promise<void> | null = null;
