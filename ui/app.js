@@ -57,7 +57,11 @@ function accountUsageSharePercent(snapshot, today = false) {
 }
 
 function tokenSummary(value) {
-  return value === null ? '계산 대기' : `${compactNumber(value)} tokens`;
+  return value === null ? '—' : `${compactNumber(value)} tokens`;
+}
+
+function connectionMessage(snapshot) {
+  return [...new Set([snapshot.connection?.rateLimitError, snapshot.connection?.tokenUsageError].filter(Boolean))].join(' ');
 }
 
 function accountTokenLabel(snapshot) {
@@ -67,8 +71,12 @@ function accountTokenLabel(snapshot) {
 }
 
 function renderDashboard(snapshot, settings) {
+  const unavailable = snapshot.connection ? '계산 불가' : '확인 중';
+  const notice = connectionMessage(snapshot);
+  $('connectionNotice').textContent = notice;
+  $('connectionNotice').hidden = !notice;
   const remaining = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
-  document.title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${localQuotaPercent(snapshot) ?? '측정 중'}`;
+  document.title = `Codex Meter · 계정 ${remaining} 남음 · 이 PC ${localQuotaPercent(snapshot) ?? unavailable}`;
   $('accountUsed').textContent = snapshot.accountUsedPct === null ? '—' : `${Math.round(snapshot.accountUsedPct)}%`;
   $('accountTodayUsed').textContent = todayPercent(snapshot) ?? '—';
   $('accountTodayUsed').title = snapshot.accountTodayBasis === 'reset'
@@ -86,8 +94,8 @@ function renderDashboard(snapshot, settings) {
   setProgress($('accountFill'), null, snapshot.accountUsedPct, settings.guardrailPct);
   $('localTokens').textContent = compactNumber(snapshot.local.tokens);
   $('localRequests').textContent = snapshot.local.requests.toLocaleString('ko-KR');
-  $('localAccountUsageShareWeek').textContent = accountUsageSharePercent(snapshot) ?? '계산 대기';
-  $('localAccountUsageShareToday').textContent = accountUsageSharePercent(snapshot, true) ?? '계산 대기';
+  $('localAccountUsageShareWeek').textContent = accountUsageSharePercent(snapshot) ?? unavailable;
+  $('localAccountUsageShareToday').textContent = accountUsageSharePercent(snapshot, true) ?? unavailable;
   $('localQuotaToday').textContent = localQuotaPercent(snapshot, true) ?? '—';
   $('localQuotaWeek').textContent = localQuotaPercent(snapshot) ?? '—';
   $('localGuardrailCaption').textContent = `경고 ${settings.guardrailPct}%`;
@@ -110,22 +118,26 @@ function renderDashboard(snapshot, settings) {
       : '세션 JSONL 대체값'
     : snapshot.statusDetail;
   $('scanStats').textContent = `${snapshot.filesIndexed} files · ${compactNumber(snapshot.bytesRead)}B read`;
+  $('scanStats').title = snapshot.connection
+    ? `Codex: ${snapshot.connection.binaryPath ?? '찾지 못함'}\n로그: ${snapshot.connection.codexHome}` : '';
 }
 
 function renderOverlay(snapshot, settings) {
+  const detail = [connectionMessage(snapshot), snapshot.accountQuotaReason, snapshot.accountUsageShareReason].filter(Boolean).join(' ');
+  const unavailable = snapshot.connection ? '계산 불가' : '확인 중';
   const dailyPct = todayPercent(snapshot);
   const localTodayPct = localQuotaPercent(snapshot, true);
   const localWeekPct = localQuotaPercent(snapshot);
   const accountShareTodayPct = accountUsageSharePercent(snapshot, true);
   const accountShareWeekPct = accountUsageSharePercent(snapshot);
   const remaining = snapshot.accountRemainingPct === null ? '—' : `${Math.round(snapshot.accountRemainingPct)}%`;
-  const used = localWeekPct ?? '측정 중';
+  const used = localWeekPct ?? unavailable;
   $('overlay').classList.toggle('overlay-minimal', settings.overlayMode === 'minimal');
   if (settings.overlayMode === 'minimal') {
     $('overlayAccount').textContent = remaining;
     $('overlayLocal').textContent = localWeekPct ?? '—';
-    $('overlayAccount').title = 'Codex 계정 주간 잔여율';
-    $('overlayLocal').title = `${snapshot.accountQuotaReason} ${snapshot.accountUsageShareReason}`;
+    $('overlayAccount').title = snapshot.connection?.rateLimitError ?? 'Codex 계정 주간 잔여율';
+    $('overlayLocal').title = detail;
     $('overlayTrack').hidden = true;
     return;
   }
@@ -134,11 +146,11 @@ function renderOverlay(snapshot, settings) {
     $('overlayAccountMeta').textContent = '이 PC 요금제 추정 · 오늘';
     $('overlayLocal').textContent = localWeekPct ?? '—';
     $('overlayLocalMeta').textContent = '이 PC 요금제 추정 · 이번 주';
-    $('overlayAccount').title = `${snapshot.accountQuotaReason} ${snapshot.accountUsageShareReason}`;
-    $('overlayLocal').title = `${snapshot.accountQuotaReason} ${snapshot.accountUsageShareReason}`;
+    $('overlayAccount').title = detail;
+    $('overlayLocal').title = detail;
     $('overlayTrack').hidden = true;
-    $('overlayStatus').textContent = `이 PC 요금제 추정 · 오늘 ${localTodayPct ?? '측정 중'} · 계정 비중 ${accountShareTodayPct ?? '측정 중'}`;
-    $('overlayGuardrail').textContent = `요금제 이번 주 ${localWeekPct ?? '측정 중'} · 계정 비중 ${accountShareWeekPct ?? '측정 중'} · 요청 오늘 ${snapshot.localToday.requests.toLocaleString('ko-KR')}회 · 주간 ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
+    $('overlayStatus').textContent = `이 PC 요금제 추정 · 오늘 ${localTodayPct ?? unavailable} · 계정 비중 ${accountShareTodayPct ?? unavailable}`;
+    $('overlayGuardrail').textContent = `요금제 이번 주 ${localWeekPct ?? unavailable} · 계정 비중 ${accountShareWeekPct ?? unavailable} · 요청 오늘 ${snapshot.localToday.requests.toLocaleString('ko-KR')}회 · 주간 ${snapshot.local.requests.toLocaleString('ko-KR')}회`;
     return;
   }
 
@@ -146,13 +158,13 @@ function renderOverlay(snapshot, settings) {
   $('overlayAccountMeta').textContent = `계정 잔여 · 오늘 사용 ${dailyPct ?? '측정 중'}`;
   $('overlayLocal').textContent = localWeekPct ?? '—';
   $('overlayLocalMeta').textContent = '이 PC 요금제 추정 · 이번 주';
-  $('overlayAccount').title = 'Codex 계정 주간 잔여율';
-  $('overlayLocal').title = `${snapshot.accountQuotaReason} ${snapshot.accountUsageShareReason}`;
+  $('overlayAccount').title = snapshot.connection?.rateLimitError ?? 'Codex 계정 주간 잔여율';
+  $('overlayLocal').title = detail;
   $('overlayTrack').hidden = false;
   $('overlayStatus').textContent = snapshot.guardrailExceeded
     ? `이 PC ${used} · 경고선 도달`
     : `이 PC ${used} · ${shortReset(snapshot.resetAt)}`;
-  $('overlayGuardrail').textContent = `이 PC 요금제 오늘 ${localTodayPct ?? '측정 중'} · 계정 비중 이번 주 ${accountShareWeekPct ?? '측정 중'} · 경고 ${settings.guardrailPct}%`;
+  $('overlayGuardrail').textContent = `이 PC 요금제 오늘 ${localTodayPct ?? unavailable} · 계정 비중 이번 주 ${accountShareWeekPct ?? unavailable} · 경고 ${settings.guardrailPct}%`;
   setProgress($('overlayFill'), $('overlayMarker'), snapshot.localQuotaUsedPct, settings.guardrailPct);
 }
 

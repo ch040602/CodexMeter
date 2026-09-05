@@ -1,14 +1,52 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
-import type { AccountTokenUsage } from './contracts';
+import type { AccountTokenUsage, CodexConnectionDiagnostics } from './contracts';
 import type { AccountRateLimit } from './usage';
 
 const WEEK_MINUTES = 10_080;
-const INITIALIZE_TIMEOUT_MS = 5_000;
-const STATUS_TIMEOUT_MS = 8_000;
-const TOKEN_USAGE_CACHE_MS = 15_000;
+const INITIALIZE_TIMEOUT_MS = 30_000;
+const STATUS_TIMEOUT_MS = 20_000;
+
+export function codexHome(env: NodeJS.ProcessEnv = process.env): string {
+  return env.CODEX_HOME?.trim() ? path.resolve(env.CODEX_HOME.trim()) : path.join(os.homedir(), '.codex');
+}
+
+function isFile(file: string): boolean {
+  try { return statSync(file).isFile(); } catch { return false; }
+}
+
+function desktopBinaries(localAppData: string | undefined): string[] {
+  if (!localAppData) return [];
+  const directory = path.join(localAppData, 'OpenAI', 'Codex', 'bin');
+  try {
+    return readdirSync(directory, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .flatMap(entry => {
+        const binary = path.join(directory, entry.name, 'codex.exe');
+        try {
+          const info = statSync(binary);
+          return info.isFile() ? [{ binary, modified: info.mtimeMs }] : [];
+        } catch { return []; }
+      })
+      .sort((left, right) => right.modified - left.modified)
+      .map(entry => entry.binary);
+  } catch { return []; }
+}
+
+function rpcErrorMessage(value: unknown): string {
+  const error = record(value);
+  const message = typeof error?.message === 'string' ? error.message : '';
+  if (error?.code === -32601 || /method not found|unknown (method|variant)|experimentalApi/i.test(message)) {
+    return '설치된 Codex가 이 조회 기능을 지원하지 않습니다. Codex를 업데이트한 뒤 새로고침하세요.';
+  }
+  if (/auth|log.?in|logged|401|403|api.?key|chatgpt.*required/i.test(message)) {
+    return 'Codex의 ChatGPT 로그인과 계정 권한을 확인한 뒤 새로고침하세요. API 키만으로는 계정 사용량을 조회할 수 없습니다.';
+  }
+  return 'Codex 상태 조회가 거부되었습니다. 연결과 Codex 로그인 상태를 확인한 뒤 새로고침하세요.';
+}
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -99,6 +137,8 @@ export function findCodexBinary(
   if (platformName !== 'win32') return null;
   const target = codexTarget(architecture);
   if (!target) return null;
+  const explicit = env.CODEX_METER_CODEX_PATH?.trim().replace(/^"|"$/g, '');
+  if (explicit) return isFile(explicit) ? path.resolve(explicit) : null;
 
   const packageRoots: string[] = [];
   const pathBinaries: string[] = [];
@@ -120,10 +160,10 @@ export function findCodexBinary(
   addPackageRoot(env.CODEX_MANAGED_PACKAGE_ROOT);
   const pathValue = env.Path ?? env.PATH ?? '';
   for (const entry of pathValue.split(path.delimiter)) {
-    const directory = entry.trim();
+    const directory = entry.trim().replace(/^"|"$/g, '');
     if (!directory) continue;
     const directBinary = path.join(directory, 'codex.exe');
-    if (existsSync(directBinary)) pathBinaries.push(directBinary);
+    if (isFile(directBinary)) pathBinaries.push(directBinary);
     if (['codex.cmd', 'codex.ps1', 'codex'].some(name => existsSync(path.join(directory, name)))) {
       addNearbyPackageRoots(directory);
     }
@@ -141,52 +181,63 @@ export function findCodexBinary(
   }
 
   for (const root of packageRoots) {
-    const binary = codexPackageBinaries(root, target).find(candidate => existsSync(candidate));
+    const binary = codexPackageBinaries(root, target).find(isFile);
     if (binary) return binary;
   }
-  return pathBinaries.find(candidate => existsSync(candidate)) ?? null;
+  return pathBinaries.find(isFile) ?? desktopBinaries(env.LOCALAPPDATA)[0] ?? null;
 }
 
 export class CodexStatusClient {
-  private readonly binaryPath = findCodexBinary();
+  private binaryPath: string | null = null;
+  private rateLimitError: string | null = null;
+  private tokenUsageError: string | null = null;
   private child: ChildProcessWithoutNullStreams | null = null;
   private lines: Interface | null = null;
   private ready: Promise<void> | null = null;
+  private reconnectRequested = false;
   private nextId = 1;
   private pending = new Map<number, PendingRequest>();
-  private tokenUsageCache: { observedAt: number; value: AccountTokenUsage | null } | null = null;
   private closed = false;
 
+  constructor(private readonly env: NodeJS.ProcessEnv = process.env) {}
+
+  getDiagnostics(): CodexConnectionDiagnostics {
+    return {
+      binaryPath: this.binaryPath,
+      codexHome: codexHome(this.env),
+      rateLimitError: this.rateLimitError,
+      tokenUsageError: this.tokenUsageError,
+    };
+  }
+
   async readWeeklyLimit(): Promise<AccountRateLimit | null> {
-    if (!this.binaryPath || this.closed) return null;
+    if (this.closed) return null;
     try {
       await this.ensureStarted();
       const result = await this.request('account/rateLimits/read', undefined, STATUS_TIMEOUT_MS);
-      return parseCodexRateLimits(result);
-    } catch {
-      this.stopChild(new Error('Codex 로컬 상태 연결이 끊겼습니다.'));
+      const parsed = parseCodexRateLimits(result);
+      this.rateLimitError = parsed ? null : '이 계정에서 주간 Codex 사용 한도를 제공하지 않습니다. 로그인 계정과 요금제를 확인하세요.';
+      return parsed;
+    } catch (error) {
+      // An optional/failed query must not cancel the other request on this connection.
+      this.rateLimitError = error instanceof Error ? error.message : 'Codex 연결을 확인하세요.';
+      this.reconnectRequested = true;
       return null;
     }
   }
 
   async readTokenUsage(): Promise<AccountTokenUsage | null> {
-    if (!this.binaryPath || this.closed) return null;
-    const now = Date.now();
-    if (this.tokenUsageCache && now - this.tokenUsageCache.observedAt < TOKEN_USAGE_CACHE_MS) {
-      return this.tokenUsageCache.value;
-    }
+    if (this.closed) return null;
     try {
       await this.ensureStarted();
       const result = await this.request('account/usage/read', undefined, STATUS_TIMEOUT_MS);
       const parsed = parseCodexTokenUsage(result);
-      const value = parsed ?? this.tokenUsageCache?.value ?? null;
-      this.tokenUsageCache = { observedAt: Date.now(), value };
-      return value;
-    } catch {
-      // Older Codex builds may reject this optional method; keep the rate-limit channel alive.
-      const value = this.tokenUsageCache?.value ?? null;
-      this.tokenUsageCache = { observedAt: Date.now(), value };
-      return value;
+      this.tokenUsageError = parsed ? null : 'Codex가 계정 토큰 내역을 제공하지 않았습니다. 로컬 토큰은 확인할 수 있지만 계정 비율은 계산할 수 없습니다.';
+      return parsed;
+    } catch (error) {
+      this.tokenUsageError = error instanceof Error ? error.message : 'Codex 연결을 확인하세요.';
+      this.reconnectRequested = true;
+      return null;
     }
   }
 
@@ -196,24 +247,41 @@ export class CodexStatusClient {
   }
 
   private async ensureStarted(): Promise<void> {
+    // Retry on the next refresh, after other queries have had a chance to finish.
+    if (this.reconnectRequested && this.pending.size === 0) {
+      this.stopChild(new Error('Codex 상태 연결을 다시 시작합니다.'));
+      this.reconnectRequested = false;
+    }
     if (this.ready) return this.ready;
-    if (!this.binaryPath) throw new Error('Codex CLI를 찾지 못했습니다.');
+    this.binaryPath = findCodexBinary(this.env);
+    if (!this.binaryPath) throw new Error('Codex 실행 파일을 찾지 못했습니다. Codex 데스크톱 앱을 한 번 실행하거나 Codex CLI를 설치한 뒤 새로고침하세요.');
 
-    const child = spawn(this.binaryPath, ['app-server', '--listen', 'stdio://'], {
+    // Stdio is the default, including older releases without the --listen option.
+    const child = spawn(this.binaryPath, ['app-server'], {
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: this.env,
+      cwd: os.homedir(),
     });
     this.child = child;
+    const onStreamError = (): void => this.stopChild(new Error('Codex 로컬 상태 연결이 끊어졌습니다.'), child);
+    for (const stream of [child.stdin, child.stdout, child.stderr]) stream.on('error', onStreamError);
     child.stderr.resume();
     this.lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
+    this.lines.on('error', onStreamError);
     this.lines.on('line', line => this.handleLine(line));
     child.once('error', () => this.stopChild(new Error('Codex 로컬 상태 프로세스를 시작하지 못했습니다.'), child));
     child.once('exit', () => this.stopChild(new Error('Codex 로컬 상태 프로세스가 종료됐습니다.'), child));
 
     const ready = this.request('initialize', {
       clientInfo: { name: 'codex-meter', version: '1.0.0' },
-      capabilities: {},
-    }, INITIALIZE_TIMEOUT_MS).then(() => undefined);
+      capabilities: { experimentalApi: true },
+    }, INITIALIZE_TIMEOUT_MS).then(() => new Promise<void>((resolve, reject) => {
+      child.stdin.write(`${JSON.stringify({ method: 'initialized', params: {} })}\n`, error => {
+        if (error) reject(new Error('Codex 초기화 완료 알림을 보내지 못했습니다.'));
+        else resolve();
+      });
+    }));
     this.ready = ready;
     try {
       await ready;
@@ -234,7 +302,7 @@ export class CodexStatusClient {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error('Codex 로컬 상태 응답 시간이 초과됐습니다.'));
+        reject(new Error('Codex 응답 시간이 초과됐습니다. 잠시 후 자동 재시도합니다. 연결 상태도 확인하세요.'));
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       child.stdin.write(`${JSON.stringify(payload)}\n`, error => {
@@ -261,7 +329,7 @@ export class CodexStatusClient {
     if (!pending) return;
     clearTimeout(pending.timer);
     this.pending.delete(id);
-    if (message && 'error' in message) pending.reject(new Error('Codex 로컬 상태 요청이 거부됐습니다.'));
+    if (message && 'error' in message) pending.reject(new Error(rpcErrorMessage(message.error)));
     else pending.resolve(message?.result);
   }
 

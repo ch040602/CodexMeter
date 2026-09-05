@@ -27,7 +27,15 @@ export interface OverlayPosition {
   y: number;
 }
 
+export interface CodexConnectionDiagnostics {
+  binaryPath: string | null;
+  codexHome: string;
+  rateLimitError: string | null;
+  tokenUsageError: string | null;
+}
+
 export interface MeterSnapshot {
+  connection: CodexConnectionDiagnostics | null;
   generatedAt: number;
   status: MeterStatus;
   statusDetail: string;

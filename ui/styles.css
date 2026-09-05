@@ -31,6 +31,7 @@ button { color: inherit; }
   justify-content: space-between;
 }
 .topbar { margin-bottom: 18px; }
+.connection-notice { margin: 0 0 12px; padding: 12px; border: 1px solid var(--warning); color: var(--text); font-size: 12px; line-height: 1.5; }
 .eyebrow { margin: 0 0 4px; color: var(--level); font-size: 10px; font-weight: 700; letter-spacing: .16em; }
 h1 { margin: 0; font-size: 24px; line-height: 1.1; letter-spacing: -.035em; }
 .icon-button, .overlay-close { border: 0; background: transparent; color: var(--muted); cursor: pointer; }

@@ -64,3 +64,23 @@ test('keeps tracking a live session whose filesystem mtime is stale', async t =>
   assert.equal(appended.local.tokens, 300);
   assert.equal(appended.local.requests, 2);
 });
+
+test('does not combine live account tokens with a JSONL fallback percentage after a rate query failure', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-meter-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const now = Date.parse('2026-09-05T12:00:00Z');
+  const resetAt = now + 3 * 24 * 60 * 60 * 1000;
+  fs.writeFileSync(path.join(root, 'session.jsonl'), `${row(now - 1000, 50, resetAt, 100)}\n`);
+  const snapshot = await new LocalUsageScanner([root]).scan(80, now, null, {
+    dailyUsageBuckets: [{ startDate: '2026-09-05', tokens: 1000 }],
+  });
+  assert.equal(snapshot.source, 'local-session-jsonl');
+  assert.equal(snapshot.accountUsedPct, 50);
+  assert.equal(snapshot.local.tokens, 100);
+  assert.equal(snapshot.accountWeeklyLimitTokens, null);
+  assert.equal(snapshot.localQuotaUsedPct, null);
+  assert.equal(snapshot.localAccountUsageSharePct, null);
+  assert.equal(snapshot.localAccountUsageShareTodayPct, null);
+  assert.equal(snapshot.guardrailExceeded, false);
+  assert.match(snapshot.accountQuotaReason, /최신.*사용률/);
+});

@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   Menu,
   nativeImage,
@@ -9,9 +10,8 @@ import {
   session,
   Tray,
 } from 'electron';
-import os from 'node:os';
 import path from 'node:path';
-import { CodexStatusClient } from './codexStatus';
+import { codexHome, CodexStatusClient } from './codexStatus';
 import {
   DEFAULT_SETTINGS,
   type MeterLevel,
@@ -26,7 +26,7 @@ import { buildSnapshot, normalizeGuardrail } from './usage';
 const REFRESH_MS = 20_000;
 const STANDARD_OVERLAY_SIZE = { width: 350, height: 166 } as const;
 const MINIMAL_OVERLAY_SIZE = { width: 150, height: 48 } as const;
-const roots = ['sessions', 'archived_sessions'].map(name => path.join(os.homedir(), '.codex', name));
+const roots = ['sessions', 'archived_sessions'].map(name => path.join(codexHome(), name));
 const scanner = new LocalUsageScanner(roots);
 const codexStatus = new CodexStatusClient();
 
@@ -54,13 +54,24 @@ function percent(value: number | null): string {
 }
 
 function quotaPercent(value: number | null): string {
-  if (value === null) return '계산 대기';
+  if (value === null) return snapshot.connection ? '계산 불가' : '확인 중';
   if (value > 0 && value < 0.1) return '≈<0.1%';
   return `≈${Number.isInteger(value) ? value : value.toFixed(value < 1 ? 2 : 1)}%`;
 }
 
 function tokenSummary(value: number | null): string {
-  return value === null ? '계산 대기' : `${compactTokens(value)} tokens`;
+  return value === null ? '—' : `${compactTokens(value)} tokens`;
+}
+
+function failStartup(error: unknown): void {
+  console.error(error);
+  const message = error instanceof Error ? error.message : String(error);
+  try {
+    dialog.showErrorBox('Codex Meter 시작 실패', `${message}\n\n앱 폴더 전체가 있는지와 사용자 설정 폴더의 쓰기 권한을 확인한 뒤 다시 실행하세요.`);
+  } finally {
+    codexStatus.close();
+    app.exit(1);
+  }
 }
 
 function accountTokenLabel(snapshotValue: MeterSnapshot): string {
@@ -204,7 +215,7 @@ function createDashboard(): BrowserWindow {
   secureWindow(window);
   void window.loadFile(path.join(__dirname, '..', 'ui', 'index.html'), {
     query: { mode: 'dashboard' },
-  });
+  }).catch(failStartup);
   window.once('ready-to-show', () => {
     rebuildTray();
     window.show();
@@ -242,7 +253,7 @@ function createOverlay(): BrowserWindow {
   window.setAlwaysOnTop(true, 'floating');
   void window.loadFile(path.join(__dirname, '..', 'ui', 'index.html'), {
     query: { mode: 'overlay' },
-  });
+  }).catch(failStartup);
   window.once('ready-to-show', () => window.showInactive());
   let positionSaveTimer: NodeJS.Timeout | null = null;
   const savePosition = (): void => {
@@ -366,7 +377,7 @@ async function refresh(): Promise<MeterSnapshot> {
       error: error instanceof Error ? error.message : '로컬 세션을 읽지 못했습니다.',
     }))
     .then(next => {
-      snapshot = next;
+      snapshot = { ...next, connection: codexStatus.getDiagnostics() };
       sendState();
       rebuildTray();
       notifyIfNeeded();
@@ -456,10 +467,7 @@ const lock = app.requestSingleInstanceLock();
 if (!lock) app.quit();
 else {
   app.on('second-instance', () => dashboard?.show());
-  app.whenReady().then(start).catch(error => {
-    console.error(error);
-    app.quit();
-  });
+  app.whenReady().then(start).catch(failStartup);
 }
 
 app.on('before-quit', () => {

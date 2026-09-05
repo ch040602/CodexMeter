@@ -358,28 +358,35 @@ export function buildSnapshot(
   const todayAccount = accountTodayUsage(values, active ? account : null, windowStart, now);
   const local = totals(values, windowStart, now);
   const localToday = totals(values, Math.max(windowStart, startOfLocalDay(now)), now);
-  const accountTokenTotals = accountWindowTokenTotals(diagnostics.accountTokenUsage, windowStart, now);
+  // A logged percentage may belong to a previous login or quota window.
+  // Never combine that fallback with tokens from the currently signed-in account.
+  const accountTokenUsage = live ? diagnostics.accountTokenUsage : null;
+  const unmatchedAccountReason = !live && diagnostics.accountTokenUsage
+    ? 'Codex의 최신 계정 주간 사용률을 확인하지 못해 계정 토큰과 같은 기간인지 검증할 수 없습니다. 연결을 복구한 뒤 새로고침하세요.'
+    : null;
+  const accountTokenTotals = accountWindowTokenTotals(accountTokenUsage, windowStart, now);
   const localAccountUsageSharePct = ratioPercent(local.tokens, accountTokenTotals.weekly);
   const localAccountUsageShareTodayPct = ratioPercent(
     localToday.tokens,
     accountTokenTotals.today ?? (accountTokenTotals.basis === 'recent-estimate' ? accountTokenTotals.weekly : null),
   );
-  const accountUsageShareReason = accountUsageShareReasonText(accountTokenTotals, diagnostics.accountTokenUsage !== null && diagnostics.accountTokenUsage !== undefined);
+  const accountUsageShareReason = unmatchedAccountReason ?? accountUsageShareReasonText(accountTokenTotals, accountTokenUsage != null);
   const accountWindowTokens = accountTokenTotals.weekly;
   const accountWeeklyLimitTokens = inferWeeklyLimit(accountUsedPct, accountWindowTokens);
   const localQuotaUsedPct = quotaPercent(local.tokens, accountWeeklyLimitTokens);
   const localQuotaUsedTodayPct = quotaPercent(localToday.tokens, accountWeeklyLimitTokens);
   const accountQuotaBasis: AccountQuotaBasis = accountWeeklyLimitTokens === null ? 'unavailable' : 'inferred';
   const level = levelFor(localQuotaUsedPct, guardrailPct);
-  const accountQuotaReasonValue = accountQuotaReason(
+  const accountQuotaReasonValue = unmatchedAccountReason ?? accountQuotaReason(
     accountUsedPct,
     accountQuotaBasis,
     accountTokenTotals.basis,
-    diagnostics.accountTokenUsage !== null && diagnostics.accountTokenUsage !== undefined,
+    accountTokenUsage != null,
   );
 
   return {
     generatedAt: now,
+    connection: null,
     status,
     statusDetail,
     source: live ? 'codex-local-status' : 'local-session-jsonl',
